@@ -8,7 +8,7 @@ const CACHE = "daily-record-v1";
 
 const APP_SHELL = [
   "./",
-  "./每日记录台-V1.html",
+  "./index.html",
   "./manifest.json",
   "./sw.js",
   "./icons/icon-192.png",
@@ -50,7 +50,7 @@ self.addEventListener("fetch", (event) => {
           return res;
         })
         .catch(() =>
-          caches.match(req).then((hit) => hit || caches.match("./每日记录台-V1.html"))
+          caches.match(req).then((hit) => hit || caches.match("./index.html"))
         )
     );
     return;
