@@ -1958,10 +1958,11 @@ function relDayKey(key) {
   return "";
 }
 
-/* 相邻两条时长差：不到1分钟 / X分钟 / X小时Y分 / X天Y小时 */
+/* 相邻两条时长差：X秒 / X分钟 / X小时Y分 / X天Y小时 */
 function fmtDiff(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  if (totalSec < 60) return totalSec + "秒";
   const m = Math.round(ms / 60000);
-  if (m < 1) return "不到1分钟";
   if (m < 60) return m + "分钟";
   const h = Math.floor(m / 60), rm = m % 60;
   if (h < 24) return rm ? h + "小时" + rm + "分" : h + "小时";
