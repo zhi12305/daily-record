@@ -4,13 +4,17 @@
   "description": "高频词记录、待办清单、比赛信息与健康数据的本地工作台",
   "lang": "zh-CN",
   "dir": "ltr",
-  "start_url": "./每日记录台-V1.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#FAF8F5",
   "theme_color": "#FAF8F5",
-  "categories": ["productivity", "lifestyle", "utilities"],
+  "categories": [
+    "productivity",
+    "lifestyle",
+    "utilities"
+  ],
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -41,17 +45,17 @@
     {
       "name": "记一条",
       "short_name": "记一条",
-      "url": "./每日记录台-V1.html#/record"
+      "url": "./index.html#/record"
     },
     {
       "name": "比赛信息",
       "short_name": "比赛",
-      "url": "./每日记录台-V1.html#/comps"
+      "url": "./index.html#/comps"
     },
     {
       "name": "健康数据",
       "short_name": "健康",
-      "url": "./每日记录台-V1.html#/health"
+      "url": "./index.html#/health"
     }
   ]
 }
