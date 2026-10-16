@@ -1251,6 +1251,27 @@ a { color: inherit; text-decoration: none; }
 .modal h3 { font-size: 16px; font-weight: 620; margin-bottom: 4px; }
 .modal .modal-sub { font-size: 12.5px; color: var(--text-2); margin-bottom: 18px; }
 
+/* ---- 云同步（共享码） ---- */
+.cloud-status { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin: 4px 0 8px; }
+.cloud-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--accent); }
+.cloud-dot.busy { background: var(--m-oat, #DCC9A9); animation: cloud-pulse 1s ease-in-out infinite; }
+@keyframes cloud-pulse { 50% { opacity: .3; } }
+.cloud-code {
+  font-size: 23px; font-weight: 650; letter-spacing: .26em; text-align: center;
+  padding: 14px 6px; margin: 10px 0 8px; border-radius: var(--radius-md, 12px);
+  background: var(--surface-soft); color: var(--accent-deep);
+  font-variant-numeric: tabular-nums; cursor: pointer; user-select: all;
+  transition: background 160ms var(--ease);
+}
+.cloud-code:hover { background: var(--accent-soft, #EDF0EA); }
+.cloud-meta { font-size: 12px; color: var(--text-3); margin-bottom: 16px; text-align: center; }
+.cloud-hint { font-size: 12px; color: var(--text-3); line-height: 1.6; margin-top: 12px; }
+#cloudCodeInput { letter-spacing: .18em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
+.nav-item.action.on .ico { color: var(--accent-deep); }
+.local-badge.synced { color: var(--accent-deep); }
+.local-badge.synced svg { stroke: var(--accent-deep); }
+@media (max-width: 900px) { .local-badge .label { display: none; } }
+
 .mg-row {
   display: flex;
   align-items: center;
@@ -1657,6 +1678,10 @@ a { color: inherit; text-decoration: none; }
 
     <div class="side-foot">
       <div class="side-actions">
+        <button class="nav-item action" id="btnCloud" title="云同步（共享码）">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.9 9.2 3.5 3.5 0 0 1 17.5 18Z"/></svg>
+          <span class="label">云同步</span>
+        </button>
         <button class="nav-item action" id="btnExport" title="导出备份（JSON）">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/></svg>
           <span class="label">导出备份</span>
@@ -1666,7 +1691,7 @@ a { color: inherit; text-decoration: none; }
           <span class="label">导入备份</span>
         </button>
       </div>
-      <p class="foot-note">本地存储 · 无需登录</p>
+      <p class="foot-note" id="footNote">本地存储 · 无需登录</p>
     </div>
   </aside>
   <div class="side-backdrop" id="sideBackdrop" hidden></div>
@@ -1683,9 +1708,9 @@ a { color: inherit; text-decoration: none; }
       </div>
       <div class="top-right">
         <span class="top-clock" id="topClock"></span>
-        <span class="local-badge" title="所有数据仅存储在此设备的浏览器中，不上传服务器">
+        <span class="local-badge" id="localBadge" title="所有数据仅存储在此设备的浏览器中，不上传服务器">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>
-          仅本地
+          <span class="label">仅本地</span>
         </span>
       </div>
     </header>
@@ -2074,6 +2099,52 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
+<div class="modal-mask" id="cloudModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="cloudTitle">
+    <h3 id="cloudTitle">云同步</h3>
+    <p class="modal-sub" id="cloudSub">用一个共享码，让家人 / 同事共用这份数据</p>
+
+    <!-- 未连接态 -->
+    <div id="cloudOff">
+      <div class="edit-field">
+        <span class="lbl">输入共享码加入</span>
+        <input id="cloudCodeInput" type="text" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="6 位码，如 ABCD23">
+      </div>
+      <div class="mg-foot">
+        <span class="count"></span>
+        <div class="foot-right">
+          <button class="ghost-btn" id="btnCloudCancel">关闭</button>
+          <button class="ghost-btn" id="btnCloudJoin">加入</button>
+          <button class="primary-btn" id="btnCloudCreate">新建共享组</button>
+        </div>
+      </div>
+      <p class="cloud-hint">
+        新建共享组会把本机现有数据上传，并生成一个共享码；其他人输入该共享码即可看到同一份数据。<br>
+        本期数据按「后保存的覆盖先保存的」处理。
+      </p>
+    </div>
+
+    <!-- 已连接态 -->
+    <div id="cloudOn" hidden>
+      <div class="cloud-status">
+        <span class="cloud-dot" id="cloudDot"></span>
+        <span id="cloudState">已连接</span>
+      </div>
+      <div class="cloud-code" id="cloudCodeShow" title="点击复制共享码">--------</div>
+      <p class="cloud-meta" id="cloudMeta">上次同步：—</p>
+      <div class="mg-foot">
+        <span class="count"></span>
+        <div class="foot-right">
+          <button class="ghost-btn" id="btnCloudCancel2">关闭</button>
+          <button class="ghost-btn danger" id="btnCloudLeave">断开连接</button>
+          <button class="primary-btn" id="btnCloudSyncNow">立即同步</button>
+        </div>
+      </div>
+      <p class="cloud-hint">把共享码发给家人 / 同事，他们在自己设备上输入即可同步。数据改动后会自动上传（约 1.5 秒内），并每 30 秒拉取一次更新。</p>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" role="status"></div>
 <input type="file" id="fileImport" accept=".json,application/json" hidden>
 
@@ -2115,6 +2186,18 @@ const DEFAULT_WORDS = [
 /* 默认识别地址（可在「地点」里增删） */
 const DEFAULT_PLACES = ["家", "公司"];
 
+/* 云同步的默认（空）状态。它是「设备本地元数据」，不参与云端同步。 */
+function defaultSync() {
+  return {
+    code: "",          // 6 位共享码，"" 表示未连接
+    binId: "",         // 云端 bin id（缓存，避免每次查目录）
+    enabled: false,    // 是否已连接
+    lastSyncAt: 0,     // 最近一次成功同步的时间戳
+    lastRemoteAt: 0,   // 最近一次从云端拉到的 updatedAt（用于 LWW 比较）
+    dirty: false,      // 本地是否有未推送改动
+  };
+}
+
 function defaultState() {
   return {
     version: 2,
@@ -2127,6 +2210,7 @@ function defaultState() {
     ledgerCats: LEDGER_CATS.map(c => ({ key: c.key, name: c.name, color: c.color })), // 可自定义分类
     comps: [],     // { id, name, url, deadline, poster, note, createdAt }  deadline = "YYYY-MM-DD"
     health: [],    // { id, date, sleep, nap, hr }   sleep/nap 分钟, hr 次/分
+    sync: defaultSync(), // 云同步连接信息（仅本地，不推云端）
   };
 }
 
@@ -2135,7 +2219,10 @@ function loadState() {
   try {
     raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
-    const normalized = normalizeState(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    const normalized = normalizeState(parsed);
+    /* sync 是设备本地元数据，normalizeState 不处理它，这里单独规范化后补回 */
+    normalized.sync = normalizeSync(parsed && parsed.sync);
     /* 回写仅在「确实缺失字段」时发生，且写前再确认一次原始数据仍未被改动 */
     if (JSON.stringify(normalized) !== raw) saveState(normalized); /* 顺手修正本地坏数据 */
     return normalized;
@@ -2151,12 +2238,44 @@ function loadState() {
           /* 用默认结构补洞，但保留原始数组成员，宁可显示原始数据也不清空 */
           const safe = defaultState();
           Object.keys(fallback).forEach(k => { if (fallback[k] !== undefined) safe[k] = fallback[k]; });
+          safe.sync = normalizeSync(fallback.sync);
           return safe;
         }
       } catch (_) { /* 原始串也坏了，只能放弃 */ }
     }
     return defaultState();
   }
+}
+
+/* 共享码字母表：去掉易混的 0/O/1/I/L，共 31 字符 */
+const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
+const CODE_LEN = 6;
+
+/* 校验并生成规范短码（大写、去空格、6 位合法字符） */
+function normalizeCode(v) {
+  const s = String(v || "").toUpperCase().replace(/[^0-9A-Z]/g, "");
+  return s.length === CODE_LEN ? s : "";
+}
+function genCode() {
+  let s = "";
+  for (let i = 0; i < CODE_LEN; i++) s += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  return s;
+}
+
+/* 规范化 sync 字段（容错，任何脏数据都退化为未连接） */
+function normalizeSync(v) {
+  const d = defaultSync();
+  if (!v || typeof v !== "object") return d;
+  const code = normalizeCode(v.code);
+  const binId = typeof v.binId === "string" ? v.binId.trim() : "";
+  d.code = code;
+  d.binId = binId;
+  /* 只有 code 与 binId 都齐全才算「已连接」，防止半残状态导致读写错乱 */
+  d.enabled = !!(v.enabled && code && binId);
+  d.lastSyncAt = Number(v.lastSyncAt) > 0 ? Math.floor(Number(v.lastSyncAt)) : 0;
+  d.lastRemoteAt = Number(v.lastRemoteAt) > 0 ? Math.floor(Number(v.lastRemoteAt)) : 0;
+  d.dirty = !!v.dirty;
+  return d;
 }
 
 function normalizeState(d) {
@@ -2221,7 +2340,7 @@ function validColor(c) {
    不传时自动取 |state| 或默认表，供业务侧日常调用。 */
 function validCat(c, cats) {
   if (!Array.isArray(cats) || !cats.length) {
-    cats = (typeof state !== "undefined" && state && Array.isArray(state.ledgerCats) && state.ledgerCats.length)
+    cats = (stateReady && state && Array.isArray(state.ledgerCats) && state.ledgerCats.length)
       ? state.ledgerCats
       : LEDGER_CATS;
   }
@@ -2230,7 +2349,7 @@ function validCat(c, cats) {
 
 /* 当前分类列表（用户可自定义） */
 function getCats() {
-  return (typeof state !== "undefined" && state && Array.isArray(state.ledgerCats) && state.ledgerCats.length) ? state.ledgerCats : LEDGER_CATS;
+  return (stateReady && state && Array.isArray(state.ledgerCats) && state.ledgerCats.length) ? state.ledgerCats : LEDGER_CATS;
 }
 
 /* 取分类对象（找不到时给"其他"） */
@@ -2245,13 +2364,21 @@ function saveState(s) {
   } catch (e) {
     toast("保存失败：本地存储空间不足");
   }
+  /* 本地已安全落盘，再尝试推送云端（唯一一处侵入点）。
+     loadState() 内部会调用本函数修正脏数据，此时 `state` 尚在 TDZ —— 注意
+     「typeof 也不能安全访问 TDZ 变量」，所以必须用 stateReady 标志判断。 */
+  if (stateReady) schedulePush();
 }
 
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
+/* 标志：全局 state 是否已完成初始化。用于规避 TDZ（见 saveState 注释）。
+   必须用 var（提升为 undefined，可安全读取）；let/const 同样在 TDZ 中会抛错。 */
+var stateReady = false;
 const state = loadState();
+stateReady = true;
 
 /* ============================================================
    工具函数 —— 时间 / 日期 / 金额
@@ -4637,6 +4764,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !pickModal.hidden) closePick();
   if (e.key === "Escape" && !compModal.hidden) closeComp();
   if (e.key === "Escape" && !compPasteModal.hidden) compPasteModal.hidden = true;
+  if (e.key === "Escape" && !document.getElementById("cloudModal").hidden) closeCloud();
   if (e.key === "Escape" && sidebar.classList.contains("open")) closeDrawer();
 });
 
@@ -4678,17 +4806,9 @@ fileImport.addEventListener("change", () => {
       }
       if (!confirm("导入将覆盖当前所有数据，确定继续吗？")) return;
       Object.assign(state, normalizeState(incoming));
+      state.sync = normalizeSync(state.sync); /* 保留本设备的连接信息 */
       saveState();
-      applySidebar();
-      applyMovesToggle();
-      renderWords();
-      renderTimeline();
-      renderTodos();
-      renderLedger();
-      renderComps();
-      renderHealth();
-      renderHistory();
-      route();
+      rerenderAll();
       toast("导入成功");
     } catch (e) {
       toast("导入失败：不是有效的备份文件");
@@ -4697,6 +4817,419 @@ fileImport.addEventListener("change", () => {
     }
   };
   reader.readAsText(file);
+});
+
+/* 全量重渲染：导入备份、应用云端数据等「整表替换」场景共用 */
+function rerenderAll() {
+  applySidebar();
+  applyMovesToggle();
+  renderWords();
+  renderCats();
+  renderTimeline();
+  renderTodos();
+  renderLedger();
+  renderComps();
+  renderHealth();
+  renderHistory();
+  route();
+}
+
+/* ============================================================
+   云同步（共享码）
+   —— 基于 JSONBin.io 公开 bin，纯前端、无 key、离线优先。
+   —— 短码 6 位；每个共享组独占一个 bin（组间零干扰）。
+   —— 「新建共享组」从预置 bin 池中领取一个（前端无 key 也能写）。
+   —— 冲突策略：last-write-wins（后写覆盖），按 updatedAt 比较。
+   ============================================================ */
+const CLOUD = {
+  api: "https://api.jsonbin.io/v3/b",
+  dirBinId: "6ad1aed5ffd5d160536fc200", /* 目录 bin：{v,dir:{code:binId},pool:[binId...]} */
+  pollMs: 30000,                       /* 轮询拉取间隔 */
+  pushDebounceMs: 1500,                /* 本地改动后延迟推送（合并高频写） */
+  timeoutMs: 15000,
+};
+
+let cloudBusy = false;      /* 是否正在同步（防重入） */
+let pushTimer = null;
+let pollTimer = null;
+
+/* 带超时的 fetch（JSONBin 偶发慢响应，避免请求悬挂） */
+async function cloudFetch(url, opt) {
+  const ctl = new AbortController();
+  const tid = setTimeout(() => ctl.abort(), CLOUD.timeoutMs);
+  try {
+    return await fetch(url, Object.assign({ signal: ctl.signal }, opt || {}));
+  } finally {
+    clearTimeout(tid);
+  }
+}
+
+/* 业务数据是否为空（用于防止「空覆盖有」） */
+function isEmptyBiz(s) {
+  return !s.records.length && !s.todos.length && !s.ledger.length &&
+         !s.comps.length && !s.health.length;
+}
+
+/* 推送到云端的载荷：剥离 sync（sync 是设备本地元数据，不参与共享） */
+function toCloudPayload(s) {
+  const out = {};
+  Object.keys(s).forEach(k => { if (k !== "sync") out[k] = s[k]; });
+  return out;
+}
+function buildPayload() {
+  return { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: toCloudPayload(state) };
+}
+
+/* ---- 目录 bin 读写 ---- */
+async function dirRead() {
+  const res = await cloudFetch(CLOUD.api + "/" + CLOUD.dirBinId + "/latest?meta=false", { cache: "no-store" });
+  if (!res.ok) throw new Error("目录读取失败 " + res.status);
+  const d = await res.json();
+  return { v: 1, dir: (d && d.dir) || {}, pool: Array.isArray(d && d.pool) ? d.pool : [], updatedAt: (d && d.updatedAt) || 0 };
+}
+async function dirWrite(obj) {
+  obj.updatedAt = Date.now();
+  const res = await cloudFetch(CLOUD.api + "/" + CLOUD.dirBinId, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(obj),
+  });
+  if (!res.ok) throw new Error("目录写入失败 " + res.status);
+  return true;
+}
+
+/* ---- 数据 bin 读写 ---- */
+async function cloudGetBin(binId) {
+  const res = await cloudFetch(CLOUD.api + "/" + binId + "/latest?meta=false", { cache: "no-store" });
+  if (!res.ok) throw new Error("读取失败 " + res.status);
+  return await res.json();
+}
+async function cloudPutBin(binId, payload) {
+  const res = await cloudFetch(CLOUD.api + "/" + binId, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("写入失败 " + res.status);
+  return true;
+}
+
+/* ---- 推送：把本地数据推到云端 ---- */
+async function pushToCloud(opts) {
+  opts = opts || {};
+  if (!state.sync || !state.sync.enabled || !state.sync.binId) return false;
+  if (cloudBusy) return false;
+  cloudBusy = true;
+  setCloudBusy(true);
+  try {
+    const latest = await cloudGetBin(state.sync.binId);
+    const remoteAt = Number(latest && latest.updatedAt) || 0;
+    /* 防「空覆盖有」：本地业务全空而远端有数据，拒绝推送 */
+    if (isEmptyBiz(state) && remoteAt > 0 && !isEmptyBiz(latest.data || {})) {
+      if (!opts.silent) toast("本机数据为空，已阻止覆盖云端（避免误删）");
+      return false;
+    }
+    await cloudPutBin(state.sync.binId, buildPayload());
+    state.sync.lastSyncAt = Date.now();
+    state.sync.lastRemoteAt = state.sync.lastSyncAt; /* 自己写的时间即最新 */
+    state.sync.dirty = false;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); /* 只落盘，不再触发推送 */
+    setCloudBadge();
+    if (!opts.silent) toast("已同步到云端");
+    return true;
+  } catch (e) {
+    if (!opts.silent) toast("同步失败：" + (e && e.message ? e.message : "网络错误"));
+    return false;
+  } finally {
+    cloudBusy = false;
+    setCloudBusy(false);
+  }
+}
+
+/* ---- 拉取：把云端数据取回本地 ---- */
+async function pullFromCloud(opts) {
+  opts = opts || {};
+  if (!state.sync || !state.sync.enabled || !state.sync.binId) return false;
+  if (cloudBusy) return false;
+  cloudBusy = true;
+  setCloudBusy(true);
+  try {
+    const cloud = await cloudGetBin(state.sync.binId);
+    const remoteAt = Number(cloud && cloud.updatedAt) || 0;
+    /* 本地有未推送改动时，不静默覆盖；手动同步则先推后退 */
+    if (state.sync.dirty) {
+      if (opts.force !== false && opts.manual) { /* 手动：先推再拉，保持简单 */ }
+      else return false;
+    }
+    /* 远端不比上次已知的更新 → 无需应用 */
+    if (remoteAt <= (state.sync.lastRemoteAt || 0)) return false;
+    const data = cloud && cloud.data;
+    if (!data || typeof data !== "object") return false;
+    applyCloudData(data, remoteAt);
+    return true;
+  } catch (e) {
+    if (!opts.silent) toast("拉取失败：" + (e && e.message ? e.message : "网络错误"));
+    return false;
+  } finally {
+    cloudBusy = false;
+    setCloudBusy(false);
+  }
+}
+
+/* 应用云端数据到本地（覆盖式，LWW）。保留本设备的 sync 连接信息。 */
+function applyCloudData(data, remoteAt) {
+  try { localStorage.setItem(STORAGE_KEY + ".pre-join", JSON.stringify(state)); } catch (_) {}
+  const keep = state.sync;
+  Object.assign(state, normalizeState(data));
+  state.sync = normalizeSync(keep);
+  state.sync.lastRemoteAt = remoteAt || Date.now();
+  state.sync.lastSyncAt = Date.now();
+  state.sync.dirty = false;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  rerenderAll();
+  setCloudBadge();
+}
+
+/* ---- 本地改动后的防抖推送 ---- */
+function schedulePush() {
+  /* 双保险：stateReady 用于规避 TDZ；state.sync 未连接则直接跳过 */
+  if (!stateReady || !state.sync || !state.sync.enabled) return;
+  state.sync.dirty = true;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => { pushToCloud({ silent: true }); }, CLOUD.pushDebounceMs);
+}
+
+/* ---- 轮询与可见性 ---- */
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(() => {
+    if (document.visibilityState === "visible") pullFromCloud({ silent: true });
+  }, CLOUD.pollMs);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state.sync && state.sync.enabled) {
+    pullFromCloud({ silent: true });
+  }
+});
+/* 关页前尽力把未推送改动送出去 */
+window.addEventListener("beforeunload", () => {
+  if (state.sync && state.sync.enabled && state.sync.dirty) {
+    try {
+      const blob = new Blob([JSON.stringify(buildPayload())], { type: "application/json" });
+      navigator.sendBeacon && navigator.sendBeacon(CLOUD.api + "/" + state.sync.binId, blob);
+    } catch (_) {}
+  }
+});
+
+/* ---- UI：顶栏徽标与侧栏脚注 ---- */
+function setCloudBusy(on) {
+  const dot = document.getElementById("cloudDot");
+  if (dot) dot.className = "cloud-dot" + (on ? " busy" : "");
+  const st = document.getElementById("cloudState");
+  if (st && state.sync && state.sync.enabled) st.textContent = on ? "同步中…" : "已连接";
+}
+function setCloudBadge() {
+  const on = !!(state.sync && state.sync.enabled);
+  const badge = document.getElementById("localBadge");
+  if (badge) {
+    badge.classList.toggle("synced", on);
+    const t = badge.querySelector(".label");
+    if (t) t.textContent = on ? "已同步" : "仅本地";
+    badge.title = on ? "已连接共享码，数据会同步到云端" : "所有数据仅存储在此设备的浏览器中，不上传服务器";
+  }
+  const note = document.getElementById("footNote");
+  if (note) note.textContent = on ? ("已连接 · 码 " + state.sync.code) : "本地存储 · 无需登录";
+  const btn = document.getElementById("btnCloud");
+  if (btn) {
+    const lb = btn.querySelector(".label");
+    if (lb) lb.textContent = on ? "云同步" : "云同步";
+    btn.classList.toggle("on", on);
+  }
+}
+
+/* ---- 弹层 ---- */
+function openCloud() {
+  document.getElementById("cloudModal").hidden = false;
+  renderCloudModal();
+}
+function closeCloud() {
+  document.getElementById("cloudModal").hidden = true;
+}
+function fmtAgo(ts) {
+  if (!ts) return "—";
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 10) return "刚刚";
+  if (s < 60) return s + " 秒前";
+  const m = Math.floor(s / 60);
+  if (m < 60) return m + " 分钟前";
+  const h = Math.floor(m / 60);
+  if (h < 24) return h + " 小时前";
+  return Math.floor(h / 24) + " 天前";
+}
+function renderCloudModal() {
+  const on = !!(state.sync && state.sync.enabled);
+  document.getElementById("cloudOff").hidden = on;
+  document.getElementById("cloudOn").hidden = !on;
+  if (on) {
+    document.getElementById("cloudCodeShow").textContent = state.sync.code;
+    document.getElementById("cloudMeta").textContent = "上次同步：" + fmtAgo(state.sync.lastSyncAt);
+    document.getElementById("cloudState").textContent = "已连接";
+    document.getElementById("cloudDot").className = "cloud-dot";
+  } else {
+    document.getElementById("cloudCodeInput").value = "";
+  }
+}
+
+/* 新建共享组：从池领一个 bin，写映射，推本地数据 */
+async function createCloudGroup() {
+  if (cloudBusy) return;
+  cloudBusy = true;
+  const btn = document.getElementById("btnCloudCreate");
+  if (btn) { btn.disabled = true; btn.textContent = "创建中…"; }
+  try {
+    const dir = await dirRead();
+    if (!dir.pool.length) {
+      toast("共享位已用完，请联系管理员补充");
+      return;
+    }
+    let code = genCode();
+    let guard = 0;
+    while (dir.dir[code] && guard++ < 20) code = genCode();
+    const binId = dir.pool[0];
+    /* 先认领 bin（写入本机数据），成为共享组的初始内容 */
+    await cloudPutBin(binId, buildPayload());
+    /* 再更新目录：登记 code->binId，并从池中移除 */
+    dir.dir[code] = binId;
+    dir.pool = dir.pool.slice(1);
+    try {
+      await dirWrite(dir);
+    } catch (e) {
+      toast("登记共享码失败，请重试");
+      return;
+    }
+    state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: Date.now(), lastRemoteAt: Date.now(), dirty: false };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    setCloudBadge();
+    renderCloudModal();
+    startPolling();
+    toast("已创建，共享码 " + code);
+  } catch (e) {
+    toast("创建失败：" + (e && e.message ? e.message : "网络错误"));
+  } finally {
+    cloudBusy = false;
+    if (btn) { btn.disabled = false; btn.textContent = "新建共享组"; }
+  }
+}
+
+/* 加入共享组：查目录 -> 拉云端 -> 按情况应用 */
+async function joinCloud(rawCode) {
+  if (cloudBusy) return;
+  const code = normalizeCode(rawCode);
+  if (!code) { toast("共享码应为 6 位字母数字"); return; }
+  if (state.sync && state.sync.enabled && state.sync.code === code) { toast("已连接该共享码"); return; }
+  cloudBusy = true;
+  const btn = document.getElementById("btnCloudJoin");
+  if (btn) { btn.disabled = true; btn.textContent = "加入中…"; }
+  try {
+    /* 连接前先把本机数据整体备份，便于回退 */
+    try { localStorage.setItem(STORAGE_KEY + ".pre-join", JSON.stringify(state)); } catch (_) {}
+    const dir = await dirRead();
+    const binId = dir.dir[code];
+    if (!binId) { toast("共享码不存在，请核对"); return; }
+    const cloud = await cloudGetBin(binId);
+    const data = (cloud && cloud.data) || {};
+    const remoteAt = Number(cloud && cloud.updatedAt) || 0;
+    const remoteEmpty = !data.records && !data.todos && !data.ledger && !data.comps && !data.health;
+    const localEmpty = isEmptyBiz(state);
+
+    if (remoteEmpty) {
+      /* 云端空：把本机数据推上去，成为共享组内容 */
+      if (!confirm("这是新的共享组，将把你的本机数据上传共享。继续？")) return;
+      state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: 0, lastRemoteAt: 0, dirty: false };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      await cloudPutBin(binId, buildPayload());
+      state.sync.lastSyncAt = Date.now();
+      state.sync.lastRemoteAt = state.sync.lastSyncAt;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } else if (localEmpty) {
+      /* 本机空、云端有：直接应用云端 */
+      state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: 0, lastRemoteAt: 0, dirty: false };
+      applyCloudData(data, remoteAt);
+      toast("已加入，已拉取云端数据");
+    } else {
+      /* 两边都有：需确认（会覆盖本机） */
+      const n = (data.records || []).length + (data.todos || []).length + (data.ledger || []).length;
+      if (!confirm("云端已有约 " + n + " 条数据，加入将用云端覆盖本机数据。\n（本机数据已自动备份，可用「导入备份」恢复）\n确定继续？")) return;
+      state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: 0, lastRemoteAt: 0, dirty: false };
+      applyCloudData(data, remoteAt);
+      toast("已加入，本机已更新为云端数据");
+    }
+    setCloudBadge();
+    renderCloudModal();
+    startPolling();
+    closeCloud(); /* 加入成功后自动收起弹层，回到正常使用 */
+  } catch (e) {
+    toast("加入失败：" + (e && e.message ? e.message : "网络错误"));
+  } finally {
+    cloudBusy = false;
+    if (btn) { btn.disabled = false; btn.textContent = "加入"; }
+  }
+}
+
+/* 断开：只清连接信息，不动本地业务数据、不删云端数据 */
+function leaveCloud() {
+  if (!confirm("断开后将停止同步（本机与云端数据都会保留）。确定断开？")) return;
+  state.sync = defaultSync();
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  stopPolling();
+  setCloudBadge();
+  renderCloudModal();
+  toast("已断开连接");
+}
+
+/* 手动同步：先推本地改动，再拉云端更新 */
+async function syncNow() {
+  const btn = document.getElementById("btnCloudSyncNow");
+  if (btn) { btn.disabled = true; btn.textContent = "同步中…"; }
+  try {
+    if (state.sync.dirty) await pushToCloud({ silent: true });
+    const changed = await pullFromCloud({ silent: false, manual: true, force: true });
+    if (!changed) toast("已是最新");
+    renderCloudModal();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "立即同步"; }
+  }
+}
+
+/* 复制共享码 */
+function copyCloudCode() {
+  const code = state.sync && state.sync.code;
+  if (!code) return;
+  const done = () => toast("共享码 " + code + " 已复制");
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(code).then(done).catch(() => toast("共享码：" + code));
+  } else {
+    toast("共享码：" + code);
+  }
+}
+
+/* 事件绑定 */
+document.getElementById("btnCloud").addEventListener("click", openCloud);
+document.getElementById("btnCloudCancel").addEventListener("click", closeCloud);
+document.getElementById("btnCloudCancel2").addEventListener("click", closeCloud);
+document.getElementById("btnCloudCreate").addEventListener("click", createCloudGroup);
+document.getElementById("btnCloudJoin").addEventListener("click", () => joinCloud(document.getElementById("cloudCodeInput").value));
+document.getElementById("cloudCodeInput").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") joinCloud(document.getElementById("cloudCodeInput").value);
+});
+document.getElementById("btnCloudLeave").addEventListener("click", leaveCloud);
+document.getElementById("btnCloudSyncNow").addEventListener("click", syncNow);
+document.getElementById("cloudCodeShow").addEventListener("click", copyCloudCode);
+document.getElementById("cloudModal").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("cloudModal")) closeCloud();
 });
 
 /* ============================================================
@@ -4717,6 +5250,12 @@ renderComps();
 renderHealth();
 renderHistory();
 route();
+setCloudBadge();
+/* 已连接共享码：启动时拉一次云端，并开启轮询 */
+if (state.sync && state.sync.enabled) {
+  pullFromCloud({ silent: true });
+  startPolling();
+}
 
 /* 数据量每满 25 条，提醒导出一次备份（localStorage 可能被浏览器清理） */
 function maybeNudge() {
