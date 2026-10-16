@@ -2131,14 +2131,30 @@ function defaultState() {
 }
 
 function loadState() {
+  let raw = null;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
     const normalized = normalizeState(JSON.parse(raw));
+    /* 回写仅在「确实缺失字段」时发生，且写前再确认一次原始数据仍未被改动 */
     if (JSON.stringify(normalized) !== raw) saveState(normalized); /* 顺手修正本地坏数据 */
     return normalized;
   } catch (e) {
-    console.warn("读取本地数据失败，已重置", e);
+    /* ★ 关键安全兜底：解析/迁移出错时「绝不」用空状态覆盖用户数据。
+       能拿到原始串就尽力原样返回；实在拿不到才退回默认值。
+       旧版此处直接 return defaultState()，导致一次异常即清空全部记录。 */
+    console.error("读取本地数据异常，已保留原始数据不回写", e);
+    if (raw) {
+      try {
+        const fallback = JSON.parse(raw);
+        if (fallback && typeof fallback === "object") {
+          /* 用默认结构补洞，但保留原始数组成员，宁可显示原始数据也不清空 */
+          const safe = defaultState();
+          Object.keys(fallback).forEach(k => { if (fallback[k] !== undefined) safe[k] = fallback[k]; });
+          return safe;
+        }
+      } catch (_) { /* 原始串也坏了，只能放弃 */ }
+    }
     return defaultState();
   }
 }
@@ -2155,10 +2171,10 @@ function normalizeState(d) {
   if (Array.isArray(d.places))  s.places  = d.places.filter(p => p && typeof p.name === "string" && p.name.trim()).map(p => ({ id: String(p.id || uid()), name: p.name.trim().slice(0, 12) }));
   if (Array.isArray(d.records)) s.records = d.records.filter(r => r && typeof r.ts === "number").map(r => ({ id: String(r.id || uid()), wordId: String(r.wordId || ""), wordText: String(r.wordText || "").slice(0, 60), color: validColor(r.color), combo: !!r.combo, placeId: String(r.placeId || ""), noPlace: !!r.noPlace, ts: r.ts }));
   if (Array.isArray(d.todos))   s.todos   = d.todos.filter(t => t && typeof t.text === "string").map(t => ({ id: String(t.id || uid()), text: t.text.slice(0, 80), done: !!t.done, createdAt: Number(t.createdAt) || Date.now() }));
-  if (Array.isArray(d.ledger))  s.ledger  = d.ledger.filter(e => e && typeof e.amount === "number" && e.amount > 0 && typeof e.ts === "number").map(e => ({ id: String(e.id || uid()), type: e.type === "income" ? "income" : "expense", amount: e.amount, category: validCat(e.category), note: String(e.note || "").slice(0, 30), ts: e.ts }));
   if (Array.isArray(d.comps))   s.comps   = d.comps.filter(c => c && typeof c.name === "string" && c.name.trim()).map(c => ({ id: String(c.id || uid()), name: c.name.trim().slice(0, 40), url: String(c.url || "").slice(0, 300), deadline: validDate(c.deadline), poster: typeof c.poster === "string" ? c.poster.slice(0, 300000) : "", note: String(c.note || "").slice(0, 30), createdAt: Number(c.createdAt) || Date.now() }));
   if (Array.isArray(d.health))  s.health  = d.health.filter(h => h && validDate(h.date)).map(h => ({ id: String(h.id || uid()), date: validDate(h.date), sleep: clampNum(h.sleep, 0, 24 * 60), nap: clampNum(h.nap, 0, 720), hr: clampNum(h.hr, 30, 220) }));
-  /* 记账分类：自定义列表（老数据没有该字段时用默认，并保证"其他"始终存在） */
+  /* 记账分类：自定义列表（老数据没有该字段时用默认，并保证"其他"始终存在）
+     注意：必须放在账目 ledger 之前解析，因为账目分类要按这张表校验 */
   if (Array.isArray(d.ledgerCats)) {
     const seen = new Set();
     s.ledgerCats = d.ledgerCats
@@ -2175,6 +2191,8 @@ function normalizeState(d) {
   if (!s.ledgerCats.some(c => c.key === "other")) {
     s.ledgerCats.push({ key: "other", name: "其他", color: "#B6B0A8" });
   }
+  /* 账目：分类按上面解析出的 ledgerCats 校验（显式传表，避免 TDZ） */
+  if (Array.isArray(d.ledger))  s.ledger  = d.ledger.filter(e => e && typeof e.amount === "number" && e.amount > 0 && typeof e.ts === "number").map(e => ({ id: String(e.id || uid()), type: e.type === "income" ? "income" : "expense", amount: e.amount, category: validCat(e.category, s.ledgerCats), note: String(e.note || "").slice(0, 30), ts: e.ts }));
 
   if (!s.words.length) s.words = defaultState().words;
   return s;
@@ -2197,14 +2215,22 @@ function validColor(c) {
   return typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c) ? c : MORANDI[0].hex;
 }
 
-function validCat(c) {
-  const cats = (state && Array.isArray(state.ledgerCats) && state.ledgerCats.length) ? state.ledgerCats : LEDGER_CATS;
+/* 校验分类 key。
+   注意：loadState()/normalizeState() 早于 `const state` 初始化，
+   此处若读全局 state 会踩 TDZ（ReferenceError），必须用显式传入的列表。
+   不传时自动取 |state| 或默认表，供业务侧日常调用。 */
+function validCat(c, cats) {
+  if (!Array.isArray(cats) || !cats.length) {
+    cats = (typeof state !== "undefined" && state && Array.isArray(state.ledgerCats) && state.ledgerCats.length)
+      ? state.ledgerCats
+      : LEDGER_CATS;
+  }
   return cats.some(x => x.key === c) ? c : "other";
 }
 
 /* 当前分类列表（用户可自定义） */
 function getCats() {
-  return (state && Array.isArray(state.ledgerCats) && state.ledgerCats.length) ? state.ledgerCats : LEDGER_CATS;
+  return (typeof state !== "undefined" && state && Array.isArray(state.ledgerCats) && state.ledgerCats.length) ? state.ledgerCats : LEDGER_CATS;
 }
 
 /* 取分类对象（找不到时给"其他"） */

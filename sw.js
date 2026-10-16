@@ -4,7 +4,7 @@
         导航请求「网络优先，离线回退缓存」——保证断网也能打开。
    升级：CACHE 版本号 +1，activate 时清理旧缓存。
    ============================================================ */
-const CACHE = "daily-record-v1";
+const CACHE = "daily-record-v3";
 
 const APP_SHELL = [
   "./",
@@ -56,7 +56,23 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  /* 静态资源：缓存优先， miss 再走网络并写入缓存 */
+  /* 静态资源：HTML 一律网络优先（保证更新立刻可见），其余缓存优先 */
+  const isHTML = req.destination === "document" || /\.html?($|\?)/.test(url.pathname);
+  if (isHTML) {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          if (res && res.ok) {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match(req).then((hit) => hit || caches.match("./index.html")))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(req).then((hit) => {
       if (hit) return hit;
