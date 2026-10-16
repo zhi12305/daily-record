@@ -458,6 +458,105 @@ a { color: inherit; text-decoration: none; }
 .edit-time .edit-field { flex: 1; min-width: 0; }
 .foot-right { display: flex; gap: 8px; }
 
+/* ------------------------------------------------------------
+   自研时间选择器（替代原生 type=time 表盘）
+   双列滚轮：小时 / 分钟，可直接上下滑动，也能滑动任一侧回改
+   ------------------------------------------------------------ */
+.tp-wrap { position: relative; }
+.tp-native { position: absolute !important; width: 1px !important; height: 1px !important;
+  padding: 0 !important; margin: -1px !important; border: 0 !important; opacity: 0 !important;
+  pointer-events: none !important; }
+.tp-trigger {
+  display: flex; align-items: center; justify-content: center; gap: 2px;
+  border: none; background: var(--surface-soft);
+  border-radius: var(--radius-md); padding: 9px 13px;
+  font-size: 14px; color: var(--text); width: 100%;
+  font-family: inherit; cursor: pointer; letter-spacing: 0.5px;
+  font-variant-numeric: tabular-nums;
+}
+.tp-trigger:focus-visible { outline: none; box-shadow: 0 0 0 1.5px var(--accent); }
+.tp-trigger:active { background: #FFFFFF; }
+
+.tp-panel {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(58, 54, 48, 0.32);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  animation: tpFade .18s ease;
+}
+.tp-panel[hidden] { display: none; }
+@keyframes tpFade { from { opacity: 0; } to { opacity: 1; } }
+.tp-card {
+  width: 100%; max-width: 300px;
+  background: var(--surface, #FFFFFF);
+  border-radius: 20px; overflow: hidden;
+  box-shadow: 0 18px 48px rgba(74, 68, 58, 0.18);
+  animation: tpRise .22s cubic-bezier(.2,.8,.3,1);
+}
+@keyframes tpRise { from { opacity: 0; transform: translateY(12px) scale(.98); } to { opacity: 1; transform: none; } }
+.tp-head {
+  padding: 18px 18px 6px; text-align: center;
+  font-size: 13px; color: var(--text-2); letter-spacing: .3px;
+}
+.tp-view {
+  display: flex; align-items: center; justify-content: center; gap: 4px;
+  padding: 2px 0 10px; font-variant-numeric: tabular-nums;
+}
+.tp-view .tp-seg {
+  font-size: 40px; font-weight: 600; line-height: 1;
+  color: var(--text-2); background: none; border: none;
+  padding: 4px 8px; border-radius: 12px; cursor: pointer;
+  font-family: inherit; transition: color .15s ease, background .15s ease;
+}
+.tp-view .tp-seg.active { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.tp-view .tp-colon { font-size: 34px; font-weight: 600; color: var(--text-2); opacity: .5; padding-bottom: 4px; }
+
+.tp-wheels { display: flex; gap: 8px; padding: 0 16px 4px; }
+.tp-wheel-box { flex: 1; position: relative; }
+.tp-wheel-lbl { text-align: center; font-size: 11px; color: var(--text-2); opacity: .7; margin-bottom: 4px; letter-spacing: .5px; }
+/* 中央选中框：相对滚轮区域垂直居中 */
+.tp-band {
+  position: absolute; left: 8px; right: 8px; height: 44px;
+  top: 50%; transform: translateY(-50%);
+  border-radius: 12px; pointer-events: none; z-index: 2;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.tp-wheels { position: relative; }
+.tp-wheel {
+  height: 176px; overflow-y: auto; scroll-snap-type: y mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  border-radius: 14px;
+  background: var(--surface-soft);
+  position: relative;
+  mask-image: linear-gradient(to bottom, transparent, #000 26%, #000 74%, transparent);
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 26%, #000 74%, transparent);
+}
+.tp-wheel::-webkit-scrollbar { display: none; }
+.tp-wheel .tp-pad { height: 66px; }
+.tp-wheel .tp-item {
+  height: 44px; display: flex; align-items: center; justify-content: center;
+  scroll-snap-align: center;
+  font-size: 21px; color: var(--text-2); opacity: .42;
+  font-variant-numeric: tabular-nums;
+  transition: opacity .15s ease, color .15s ease, transform .15s ease;
+  cursor: pointer;
+}
+.tp-wheel .tp-item.on { opacity: 1; color: var(--text); font-weight: 620; transform: scale(1.06); }
+.tp-wheel.on-side .tp-item.on { color: var(--accent); }
+.tp-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px 16px; gap: 8px;
+}
+.tp-foot .tp-now {
+  border: none; background: none; cursor: pointer; font-family: inherit;
+  font-size: 13.5px; color: var(--accent); padding: 6px 10px; border-radius: 9px;
+}
+.tp-foot .tp-now:active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.tp-foot .tp-actions { display: flex; gap: 8px; }
+
 /* ---------- V3.0 时间线：小时分隔 + 待办混排 ---------- */
 .hour-divider {
   display: flex;
@@ -1668,7 +1767,10 @@ a { color: inherit; text-decoration: none; }
       </div>
       <div class="edit-field">
         <span class="lbl">时间</span>
-        <input id="editTime" type="time">
+        <div class="tp-wrap" data-timefield>
+          <input id="editTime" class="tp-native" type="time" tabindex="-1" aria-hidden="true">
+          <button type="button" class="tp-trigger" data-tp-open>--:--</button>
+        </div>
       </div>
     </div>
     <div class="mg-foot">
@@ -1693,7 +1795,10 @@ a { color: inherit; text-decoration: none; }
       </div>
       <div class="edit-field">
         <span class="lbl">时间</span>
-        <input id="comboTime" type="time">
+        <div class="tp-wrap" data-timefield>
+          <input id="comboTime" class="tp-native" type="time" tabindex="-1" aria-hidden="true">
+          <button type="button" class="tp-trigger" data-tp-open>--:--</button>
+        </div>
       </div>
     </div>
     <div class="edit-field">
@@ -4110,6 +4215,218 @@ function maybeNudge() {
   }
 }
 maybeNudge();
+
+/* ============================================================
+   自研时间选择器（Time Picker）
+   —— 替代原生 input[type=time]：双列滚轮，可自由回改小时/分钟
+   数据仍写回隐藏的原生 input（"HH:MM"），业务逻辑无需改动
+   ============================================================ */
+const tpPanel = document.createElement("div");
+tpPanel.className = "tp-panel";
+tpPanel.hidden = true;
+tpPanel.innerHTML = `
+  <div class="tp-card" role="dialog" aria-modal="true" aria-label="选择时间">
+    <div class="tp-head">选择时间</div>
+    <div class="tp-view">
+      <button type="button" class="tp-seg" data-seg="h">00</button>
+      <span class="tp-colon">:</span>
+      <button type="button" class="tp-seg" data-seg="m">00</button>
+    </div>
+    <div class="tp-wheels">
+      <div class="tp-band"></div>
+      <div class="tp-wheel-box">
+        <div class="tp-wheel-lbl">时</div>
+        <div class="tp-wheel" data-wheel="h"><div class="tp-pad"></div></div>
+      </div>
+      <div class="tp-wheel-box">
+        <div class="tp-wheel-lbl">分</div>
+        <div class="tp-wheel" data-wheel="m"><div class="tp-pad"></div></div>
+      </div>
+    </div>
+    <div class="tp-foot">
+      <button type="button" class="tp-now" data-tp-now>现在</button>
+      <div class="tp-actions">
+        <button type="button" class="ghost-btn" data-tp-cancel>取消</button>
+        <button type="button" class="primary-btn" data-tp-ok>确定</button>
+      </div>
+    </div>
+  </div>`;
+document.body.appendChild(tpPanel);
+
+const TP_ITEM_H = 44;          // 每项高度，需与 CSS .tp-item height 一致
+const TP_PAD = 66;             // 上下留白，需与 CSS .tp-pad height 一致
+let tpCtx = null;              // { input, h, m, side }
+let tpScrollTimer = null;
+
+const tpHourWheel = tpPanel.querySelector('[data-wheel="h"]');
+const tpMinWheel = tpPanel.querySelector('[data-wheel="m"]');
+const tpSegH = tpPanel.querySelector('[data-seg="h"]');
+const tpSegM = tpPanel.querySelector('[data-seg="m"]');
+const tpBand = tpPanel.querySelector(".tp-band");
+
+/* 生成滚轮选项 */
+(function buildTpWheels() {
+  let hHtml = '<div class="tp-pad"></div>';
+  for (let i = 0; i < 24; i++) hHtml += `<div class="tp-item" data-v="${i}">${pad(i)}</div>`;
+  hHtml += '<div class="tp-pad"></div>';
+  tpHourWheel.innerHTML = hHtml;
+
+  let mHtml = '<div class="tp-pad"></div>';
+  for (let i = 0; i < 60; i++) mHtml += `<div class="tp-item" data-v="${i}">${pad(i)}</div>`;
+  mHtml += '<div class="tp-pad"></div>';
+  tpMinWheel.innerHTML = mHtml;
+})();
+
+/* 让中央选中框精确对齐滚轮的垂直中心 */
+function tpAlignBand() {
+  if (!tpBand || tpPanel.hidden) return;
+  const wheelsRect = tpPanel.querySelector(".tp-wheels").getBoundingClientRect();
+  const wheelRect = tpHourWheel.getBoundingClientRect();
+  const centerInWheels = wheelRect.top - wheelsRect.top + wheelRect.height / 2;
+  tpBand.style.top = centerInWheels + "px";
+  tpBand.style.transform = "translateY(-50%)";
+}
+
+/* 某一值对应的 scrollTop：让该项落在滚动容器垂直中心。
+   与 tpOnScroll 的读取公式严格互逆。 */
+function tpScrollTop(val) {
+  return TP_PAD - (tpHourWheel.clientHeight / 2 - TP_ITEM_H / 2) + val * TP_ITEM_H;
+}
+
+function tpSyncView() {
+  tpSegH.textContent = pad(tpCtx.h);
+  tpSegM.textContent = pad(tpCtx.m);
+  tpSegH.classList.toggle("active", tpCtx.side === "h");
+  tpSegM.classList.toggle("active", tpCtx.side === "m");
+  tpHourWheel.classList.toggle("on-side", tpCtx.side === "h");
+  tpMinWheel.classList.toggle("on-side", tpCtx.side === "m");
+  // 高亮当前项
+  tpHourWheel.querySelectorAll(".tp-item").forEach(el => {
+    el.classList.toggle("on", Number(el.dataset.v) === tpCtx.h);
+  });
+  tpMinWheel.querySelectorAll(".tp-item").forEach(el => {
+    el.classList.toggle("on", Number(el.dataset.v) === tpCtx.m);
+  });
+}
+
+function tpSetWheel(wheel, val, smooth) {
+  wheel.scrollTo({ top: tpScrollTop(val), behavior: smooth ? "smooth" : "auto" });
+}
+
+/* 滚动结束 → 计算落在中央的值 */
+function tpOnScroll(wheel, key) {
+  clearTimeout(tpScrollTimer);
+  tpScrollTimer = setTimeout(() => {
+    const centerY = wheel.scrollTop + wheel.clientHeight / 2 - TP_PAD;
+    let v = Math.round(centerY / TP_ITEM_H - 0.5);
+    v = Math.max(0, Math.min(key === "h" ? 23 : 59, v));
+    tpCtx[key] = v;
+    tpCtx.side = key;
+    tpSyncView();
+  }, 90);
+}
+tpHourWheel.addEventListener("scroll", () => tpOnScroll(tpHourWheel, "h"), { passive: true });
+tpMinWheel.addEventListener("scroll", () => tpOnScroll(tpMinWheel, "m"), { passive: true });
+
+/* 点击视图区数字 → 切换到对应列 */
+tpSegH.addEventListener("click", () => { tpCtx.side = "h"; tpSyncView(); });
+tpSegM.addEventListener("click", () => { tpCtx.side = "m"; tpSyncView(); });
+
+/* 点击滚轮某一项 → 直接跳过去 */
+function tpBindItemClick(wheel, key) {
+  wheel.addEventListener("click", (e) => {
+    const item = e.target.closest(".tp-item");
+    if (!item) return;
+    tpCtx[key] = Number(item.dataset.v);
+    tpCtx.side = key;
+    tpSetWheel(wheel, tpCtx[key], true);
+    tpSyncView();
+  });
+}
+tpBindItemClick(tpHourWheel, "h");
+tpBindItemClick(tpMinWheel, "m");
+
+/* 打开：从隐藏 input 读初值 */
+function tpOpen(input) {
+  const raw = input.value || (pad(new Date().getHours()) + ":" + pad(new Date().getMinutes()));
+  const [hh, mm] = raw.split(":").map(n => parseInt(n, 10));
+  tpCtx = {
+    input,
+    h: isFinite(hh) ? hh : 0,
+    m: isFinite(mm) ? mm : 0,
+    side: "h"
+  };
+  tpPanel.hidden = false;
+  tpSyncView();
+  // 等面板可见后再定位（clientHeight 才有效）
+  requestAnimationFrame(() => {
+    tpAlignBand();
+    tpSetWheel(tpHourWheel, tpCtx.h, false);
+    tpSetWheel(tpMinWheel, tpCtx.m, false);
+  });
+}
+
+function tpClose() {
+  tpPanel.hidden = true;
+  tpCtx = null;
+}
+
+/* 确定：写回隐藏 input 并同步触发按钮文字 */
+tpPanel.querySelector("[data-tp-ok]").addEventListener("click", () => {
+  if (!tpCtx) return;
+  tpCtx.input.value = pad(tpCtx.h) + ":" + pad(tpCtx.m);
+  tpCtx.input.dispatchEvent(new Event("change", { bubbles: true }));
+  tpSyncTrigger(tpCtx.input);
+  tpClose();
+});
+tpPanel.querySelector("[data-tp-cancel]").addEventListener("click", tpClose);
+tpPanel.addEventListener("click", (e) => { if (e.target === tpPanel) tpClose(); });
+tpPanel.querySelector("[data-tp-now]").addEventListener("click", () => {
+  const d = new Date();
+  tpCtx.h = d.getHours();
+  tpCtx.m = d.getMinutes();
+  tpSyncView();
+  tpSetWheel(tpHourWheel, tpCtx.h, true);
+  tpSetWheel(tpMinWheel, tpCtx.m, true);
+});
+
+/* 触发按钮文字与隐藏 input 的双向同步 */
+function tpSyncTrigger(input) {
+  const wrap = input.closest("[data-timefield]");
+  if (!wrap) return;
+  const btn = wrap.querySelector("[data-tp-open]");
+  btn.textContent = input.value || "--:--";
+}
+
+/* 绑定所有时间字段：点按钮打开；并拦截 input.value 赋值以同步按钮文字 */
+function tpBindAll() {
+  document.querySelectorAll("[data-timefield]").forEach(wrap => {
+    const input = wrap.querySelector("input");
+    const btn = wrap.querySelector("[data-tp-open]");
+    if (!input || !btn) return;
+    btn.addEventListener("click", () => tpOpen(input));
+    tpSyncTrigger(input);
+
+    // 拦截 value 属性的 setter：业务代码直接赋 input.value 时也能同步按钮文字，
+    // 无需轮询（轮询在弹层未打开时会拿到过期的 clientHeight）。
+    const proto = Object.getPrototypeOf(input);
+    const desc = Object.getOwnPropertyDescriptor(proto, "value");
+    if (desc && desc.set && !input.__tpPatched) {
+      Object.defineProperty(input, "value", {
+        configurable: true,
+        get() { return desc.get.call(this); },
+        set(v) { desc.set.call(this, v); tpSyncTrigger(this); }
+      });
+      input.__tpPatched = true;
+    }
+  });
+}
+tpBindAll();
+
+/* 窗口尺寸变化时重新对齐选中框 */
+window.addEventListener("resize", () => {
+  if (!tpPanel.hidden) tpAlignBand();
+});
 
 /* ============================================================
    PWA：注册 service worker（file:// 或托管环境不支持时静默跳过）
