@@ -1272,6 +1272,19 @@ a { color: inherit; text-decoration: none; }
 .local-badge.synced svg { stroke: var(--accent-deep); }
 @media (max-width: 900px) { .local-badge .label { display: none; } }
 
+/* ---- 自动备份 ---- */
+.backup-list { margin-bottom: 4px; }
+.backup-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 9px 2px; border-bottom: 1px solid var(--line-soft);
+}
+.backup-row:last-of-type { border-bottom: none; }
+.backup-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.backup-time { font-size: 13.5px; font-variant-numeric: tabular-nums; }
+.backup-cnt { font-size: 11.5px; color: var(--text-3); }
+.backup-btns { display: flex; gap: 2px; flex: none; }
+.backup-empty { font-size: 12.5px; color: var(--text-3); padding: 14px 2px; text-align: center; }
+
 .mg-row {
   display: flex;
   align-items: center;
@@ -1681,6 +1694,10 @@ a { color: inherit; text-decoration: none; }
         <button class="nav-item action" id="btnCloud" title="云同步（共享码）">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18a4 4 0 0 1-.5-7.97A5.5 5.5 0 0 1 17.9 9.2 3.5 3.5 0 0 1 17.5 18Z"/></svg>
           <span class="label">云同步</span>
+        </button>
+        <button class="nav-item action" id="btnBackups" title="自动备份（可恢复）">
+          <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 8v4l3 2"/></svg>
+          <span class="label">自动备份</span>
         </button>
         <button class="nav-item action" id="btnExport" title="导出备份（JSON）">
           <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M4 21h16"/></svg>
@@ -2142,6 +2159,19 @@ a { color: inherit; text-decoration: none; }
       </div>
       <p class="cloud-hint">把共享码发给家人 / 同事，他们在自己设备上输入即可同步。数据改动后会自动上传（约 1.5 秒内），并每 30 秒拉取一次更新。</p>
     </div>
+  </div>
+</div>
+
+<div class="modal-mask" id="backupModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="backupTitle">
+    <h3 id="backupTitle">自动备份</h3>
+    <p class="modal-sub">每次打开页面会自动存一份快照，最多保留 5 份</p>
+    <div id="backupList" class="backup-list"></div>
+    <div class="mg-foot">
+      <button class="ghost-btn" id="btnBackupExport">导出文件</button>
+      <button class="ghost-btn" id="btnBackupClose">完成</button>
+    </div>
+    <p class="cloud-hint">自动备份只能防「误操作 / 代码异常」；防止手机清理缓存、换设备丢数据，请定期用「导出文件」存一份到手机或网盘。</p>
   </div>
 </div>
 
@@ -4765,12 +4795,146 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !compModal.hidden) closeComp();
   if (e.key === "Escape" && !compPasteModal.hidden) compPasteModal.hidden = true;
   if (e.key === "Escape" && !document.getElementById("cloudModal").hidden) closeCloud();
+  if (e.key === "Escape" && !document.getElementById("backupModal").hidden) closeBackups();
   if (e.key === "Escape" && sidebar.classList.contains("open")) closeDrawer();
 });
 
 /* ============================================================
    导出 / 导入备份
    ============================================================ */
+/* ============================================================
+   自动备份（本地快照）
+   —— 每次打开页面时，把「当前这份数据」存一份带时间戳的快照到独立键。
+   —— 与主数据完全隔离：损坏主数据不会连带损坏备份。
+   —— 最多保留 5 份，内容重复则跳过（避免刷屏式无用备份）。
+   —— 全程静默：任何失败都不得影响主流程（上次事故的教训）。
+   ============================================================ */
+const BACKUP_KEY = STORAGE_KEY + ".backups";
+const BACKUP_MAX = 5;
+
+/* 是否有实质业务数据（避免把空状态存进备份，覆盖掉有用的旧快照） */
+function hasMeaningfulData(s) {
+  if (!s || typeof s !== "object") return false;
+  return (s.records || []).length + (s.todos || []).length + (s.ledger || []).length +
+         (s.comps || []).length + (s.health || []).length > 0;
+}
+
+function readBackups() {
+  try {
+    const raw = localStorage.getItem(BACKUP_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (_) { return []; }
+}
+
+/* 写入一份快照。返回 true 表示确实新增了。 */
+function writeBackup(s) {
+  try {
+    if (!hasMeaningfulData(s)) return false;
+    /* 剔除 sync：备份只关心业务数据，连接信息随设备走 */
+    const payload = JSON.stringify(toCloudPayload(s));
+    const list = readBackups();
+    /* 与最近一份内容相同则跳过 */
+    if (list.length && list[0].json === payload) return false;
+    list.unshift({ at: Date.now(), json: payload });
+    /* 超出上限则丢弃最旧的 */
+    while (list.length > BACKUP_MAX) list.pop();
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(list));
+    return true;
+  } catch (e) {
+    /* 备份失败绝不影响使用（可能是配额满），静默处理 */
+    return false;
+  }
+}
+
+/* 从快照恢复：把指定快照写回主数据并重渲染 */
+function restoreBackup(index) {
+  const list = readBackups();
+  const item = list[index];
+  if (!item) { toast("该备份已不存在"); return; }
+  const when = new Date(item.at);
+  if (!confirm("将用 " + (when.getMonth() + 1) + "月" + when.getDate() + "日 " +
+               pad(when.getHours()) + ":" + pad(when.getMinutes()) +
+               " 的备份覆盖当前数据。\n（当前数据会先自动存为一份新备份）\n确定继续？")) return;
+  try {
+    const data = JSON.parse(item.json);
+    const keepSync = state.sync;
+    /* 恢复前先把「当前」存一份，避免误操作不可逆 */
+    writeBackup(state);
+    Object.assign(state, normalizeState(data));
+    state.sync = normalizeSync(keepSync);
+    saveState();
+    rerenderAll();
+    toast("已恢复备份");
+    renderBackupList();
+  } catch (e) {
+    toast("恢复失败：备份内容已损坏");
+  }
+}
+
+function deleteBackup(index) {
+  try {
+    const list = readBackups();
+    if (index < 0 || index >= list.length) return;
+    list.splice(index, 1);
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(list));
+    renderBackupList();
+    toast("已删除该备份");
+  } catch (_) { toast("删除失败"); }
+}
+
+function openBackups() {
+  document.getElementById("backupModal").hidden = false;
+  renderBackupList();
+}
+function closeBackups() {
+  document.getElementById("backupModal").hidden = true;
+}
+
+/* 渲染备份列表到「管理」弹层里的备份区 */
+function renderBackupList() {
+  const box = document.getElementById("backupList");
+  if (!box) return;
+  const list = readBackups();
+  box.innerHTML = "";
+  if (!list.length) {
+    const p = document.createElement("p");
+    p.className = "backup-empty";
+    p.textContent = "暂无自动备份（产生记录后，每次打开页面会自动存一份）";
+    box.appendChild(p);
+    return;
+  }
+  list.forEach((it, i) => {
+    const d = new Date(it.at);
+    let cnt = 0;
+    try {
+      const o = JSON.parse(it.json);
+      cnt = (o.records || []).length + (o.todos || []).length + (o.ledger || []).length +
+            (o.comps || []).length + (o.health || []).length;
+    } catch (_) {}
+    const row = document.createElement("div");
+    row.className = "backup-row";
+    const meta = document.createElement("div");
+    meta.className = "backup-meta";
+    meta.innerHTML = '<span class="backup-time">' +
+      (d.getMonth() + 1) + "/" + d.getDate() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) +
+      '</span><span class="backup-cnt">' + cnt + " 条数据</span>";
+    const btns = document.createElement("div");
+    btns.className = "backup-btns";
+    const use = document.createElement("button");
+    use.className = "ghost-btn";
+    use.textContent = "恢复";
+    use.addEventListener("click", () => restoreBackup(i));
+    const del = document.createElement("button");
+    del.className = "ghost-btn danger";
+    del.textContent = "删除";
+    del.addEventListener("click", () => deleteBackup(i));
+    btns.append(use, del);
+    row.append(meta, btns);
+    box.appendChild(row);
+  });
+}
+
 document.getElementById("btnExport").addEventListener("click", () => {
   const payload = {
     app: "daily-workbench",
@@ -5232,6 +5396,17 @@ document.getElementById("cloudModal").addEventListener("click", (e) => {
   if (e.target === document.getElementById("cloudModal")) closeCloud();
 });
 
+/* 自动备份事件 */
+document.getElementById("btnBackups").addEventListener("click", openBackups);
+document.getElementById("btnBackupClose").addEventListener("click", closeBackups);
+document.getElementById("btnBackupExport").addEventListener("click", () => {
+  closeBackups();
+  document.getElementById("btnExport").click();
+});
+document.getElementById("backupModal").addEventListener("click", (e) => {
+  if (e.target === document.getElementById("backupModal")) closeBackups();
+});
+
 /* ============================================================
    启动
    ============================================================ */
@@ -5255,6 +5430,30 @@ setCloudBadge();
 if (state.sync && state.sync.enabled) {
   pullFromCloud({ silent: true });
   startPolling();
+}
+/* 启动即存一份自动备份（此刻 state 已成功加载，是「一份好数据」） */
+writeBackup(state);
+/* 检测「数据疑似被清空」：本机为空但备份里有数据 → 主动提示恢复 */
+detectDataLoss();
+
+/* 若本机业务数据为空、而最近一份备份里有数据，说明可能是异常清空，主动提醒 */
+function detectDataLoss() {
+  try {
+    if (hasMeaningfulData(state)) return;      /* 本机有数据，正常 */
+    const list = readBackups();
+    if (!list.length) return;                   /* 没有备份可用 */
+    let cnt = 0;
+    try {
+      const o = JSON.parse(list[0].json);
+      cnt = (o.records || []).length + (o.todos || []).length + (o.ledger || []).length +
+            (o.comps || []).length + (o.health || []).length;
+    } catch (_) { return; }
+    if (cnt <= 0) return;                       /* 备份里也是空的，无需提醒 */
+    const d = new Date(list[0].at);
+    toast("检测到本机数据为空，备份中有 " + cnt + " 条（" +
+          (d.getMonth() + 1) + "/" + d.getDate() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) +
+          "），可一键恢复", "去恢复", () => openBackups());
+  } catch (_) { /* 提醒失败不影响使用 */ }
 }
 
 /* 数据量每满 25 条，提醒导出一次备份（localStorage 可能被浏览器清理） */
