@@ -5279,7 +5279,8 @@ async function createCloudGroup() {
     setCloudBadge();
     renderCloudModal();
     startPolling();
-    toast("已创建，共享码 " + code);
+    toast("已创建，共享码 " + code + "，长按可复制", "查看", () => openCloud());
+    closeCloud(); /* 与"加入"保持一致：建完组自动收起弹层，回到正常使用 */
   } catch (e) {
     toast("创建失败：" + (e && e.message ? e.message : "网络错误"));
   } finally {
