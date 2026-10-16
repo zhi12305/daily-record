@@ -1251,6 +1251,11 @@ a { color: inherit; text-decoration: none; }
 .modal h3 { font-size: 16px; font-weight: 620; margin-bottom: 4px; }
 .modal .modal-sub { font-size: 12.5px; color: var(--text-2); margin-bottom: 18px; }
 
+/* ---- 通用确认弹层（替代原生 confirm，手机 PWA 下原生弹窗会被拦截） ---- */
+.modal-confirm { width: min(340px, 88vw); padding: 22px 20px 16px; }
+.confirm-msg { font-size: 14px; line-height: 1.7; color: var(--text-1); white-space: pre-line; margin-bottom: 18px; }
+.confirm-btns { display: flex; gap: 10px; justify-content: flex-end; }
+
 /* ---- 云同步（共享码） ---- */
 .cloud-status { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin: 4px 0 8px; }
 .cloud-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--accent); }
@@ -2172,6 +2177,16 @@ a { color: inherit; text-decoration: none; }
       <button class="ghost-btn" id="btnBackupClose">完成</button>
     </div>
     <p class="cloud-hint">自动备份只能防「误操作 / 代码异常」；防止手机清理缓存、换设备丢数据，请定期用「导出文件」存一份到手机或网盘。</p>
+  </div>
+</div>
+
+<div class="modal-mask" id="confirmModal" hidden>
+  <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmMsg">
+    <p id="confirmMsg" class="confirm-msg"></p>
+    <div class="confirm-btns">
+      <button class="ghost-btn" id="btnConfirmCancel">取消</button>
+      <button class="ghost-btn danger" id="btnConfirmOk">确定</button>
+    </div>
   </div>
 </div>
 
@@ -4796,6 +4811,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !compPasteModal.hidden) compPasteModal.hidden = true;
   if (e.key === "Escape" && !document.getElementById("cloudModal").hidden) closeCloud();
   if (e.key === "Escape" && !document.getElementById("backupModal").hidden) closeBackups();
+  if (e.key === "Escape" && !document.getElementById("confirmModal").hidden) settleConfirm(false);
   if (e.key === "Escape" && sidebar.classList.contains("open")) closeDrawer();
 });
 
@@ -4848,14 +4864,14 @@ function writeBackup(s) {
 }
 
 /* 从快照恢复：把指定快照写回主数据并重渲染 */
-function restoreBackup(index) {
+async function restoreBackup(index) {
   const list = readBackups();
   const item = list[index];
   if (!item) { toast("该备份已不存在"); return; }
   const when = new Date(item.at);
-  if (!confirm("将用 " + (when.getMonth() + 1) + "月" + when.getDate() + "日 " +
+  if (!(await askConfirm("将用 " + (when.getMonth() + 1) + "月" + when.getDate() + "日 " +
                pad(when.getHours()) + ":" + pad(when.getMinutes()) +
-               " 的备份覆盖当前数据。\n（当前数据会先自动存为一份新备份）\n确定继续？")) return;
+               " 的备份覆盖当前数据。\n（当前数据会先自动存为一份新备份）\n确定继续？"))) return;
   try {
     const data = JSON.parse(item.json);
     const keepSync = state.sync;
@@ -4961,14 +4977,14 @@ fileImport.addEventListener("change", () => {
   const file = fileImport.files && fileImport.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
       const parsed = JSON.parse(reader.result);
       const incoming = parsed && parsed.data ? parsed.data : parsed;
       if (!incoming || typeof incoming !== "object" || (!Array.isArray(incoming.words) && !Array.isArray(incoming.todos) && !Array.isArray(incoming.records) && !Array.isArray(incoming.ledger))) {
         throw new Error("bad shape");
       }
-      if (!confirm("导入将覆盖当前所有数据，确定继续吗？")) return;
+      if (!(await askConfirm("导入将覆盖当前所有数据，确定继续吗？"))) { fileImport.value = ""; return; }
       Object.assign(state, normalizeState(incoming));
       state.sync = normalizeSync(state.sync); /* 保留本设备的连接信息 */
       saveState();
@@ -5312,7 +5328,7 @@ async function joinCloud(rawCode) {
 
     if (remoteEmpty) {
       /* 云端空：把本机数据推上去，成为共享组内容 */
-      if (!confirm("这是新的共享组，将把你的本机数据上传共享。继续？")) return;
+      if (!(await askConfirm("这是新的共享组，将把你的本机数据上传共享。继续？"))) return;
       state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: 0, lastRemoteAt: 0, dirty: false };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       await cloudPutBin(binId, buildPayload());
@@ -5327,7 +5343,7 @@ async function joinCloud(rawCode) {
     } else {
       /* 两边都有：需确认（会覆盖本机） */
       const n = (data.records || []).length + (data.todos || []).length + (data.ledger || []).length;
-      if (!confirm("云端已有约 " + n + " 条数据，加入将用云端覆盖本机数据。\n（本机数据已自动备份，可用「导入备份」恢复）\n确定继续？")) return;
+      if (!(await askConfirm("云端已有约 " + n + " 条数据，加入将用云端覆盖本机数据。\n（本机数据已自动备份，可用「导入备份」恢复）\n确定继续？"))) return;
       state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: 0, lastRemoteAt: 0, dirty: false };
       applyCloudData(data, remoteAt);
       toast("已加入，本机已更新为云端数据");
@@ -5344,9 +5360,32 @@ async function joinCloud(rawCode) {
   }
 }
 
+/* 通用确认弹层：原生 confirm 在手机 PWA/部分浏览器会被静默拦截，必须用应用内弹窗 */
+let confirmResolve = null;
+function askConfirm(msg) {
+  return new Promise((resolve) => {
+    confirmResolve = resolve;
+    document.getElementById("confirmMsg").textContent = msg;
+    document.getElementById("confirmModal").hidden = false;
+    document.getElementById("btnConfirmOk").focus();
+  });
+}
+function settleConfirm(ok) {
+  const m = document.getElementById("confirmModal");
+  if (m && !m.hidden) m.hidden = true;
+  if (confirmResolve) { const r = confirmResolve; confirmResolve = null; r(ok); }
+}
+(function bindConfirm() {
+  document.getElementById("btnConfirmOk").addEventListener("click", () => settleConfirm(true));
+  document.getElementById("btnConfirmCancel").addEventListener("click", () => settleConfirm(false));
+  document.getElementById("confirmModal").addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) settleConfirm(false);
+  });
+})();
+
 /* 断开：只清连接信息，不动本地业务数据、不删云端数据 */
-function leaveCloud() {
-  if (!confirm("断开后将停止同步（本机与云端数据都会保留）。确定断开？")) return;
+async function leaveCloud() {
+  if (!(await askConfirm("断开后将停止同步\n（本机与云端数据都会保留）\n确定断开？"))) return;
   state.sync = defaultSync();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   stopPolling();
