@@ -645,6 +645,8 @@ a { color: inherit; text-decoration: none; }
   border-radius: 10px; padding: 6px 10px; margin: 6px 0;
 }
 .span-head .t { font-weight: 620; color: var(--text-1); }
+.span-head .span-ops { margin-left: auto; display: flex; gap: 4px; }
+.span-head .tl-edit, .span-head .tl-del { width: 24px; height: 24px; }
 .span-tail .d { font-weight: 620; color: var(--text-1); }
 .span-archived {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -2910,6 +2912,49 @@ function buildMoves(items) {
 
 function showMovesOn() { return state.ui.showMoves !== false; }
 
+/* 期间区块头部：标题 + 开始时间 + 编辑/删除（参考 memos 的行内操作） */
+function buildSpanHead(sp) {
+  const head = document.createElement("div");
+  head.className = "span-head";
+  const t = document.createElement("span");
+  t.className = "t";
+  t.textContent = "▣ " + sp.title;
+  const st = document.createElement("span");
+  st.textContent = fmtTime(sp.startTs) + " 开始" + (sp.endTs ? " · " + fmtTime(sp.endTs) + " 结束" : "");
+  const ops = document.createElement("span");
+  ops.className = "span-ops";
+  const ed = document.createElement("button");
+  ed.type = "button";
+  ed.className = "tl-edit";
+  ed.setAttribute("aria-label", "编辑这个期间");
+  ed.innerHTML = editBtnSvg();
+  ed.addEventListener("click", (e) => { e.stopPropagation(); openEdit("span", sp.id); });
+  const de = document.createElement("button");
+  de.type = "button";
+  de.className = "tl-del";
+  de.setAttribute("aria-label", "删除这个期间");
+  de.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  de.addEventListener("click", (e) => { e.stopPropagation(); deleteSpan(sp.id); });
+  ops.append(ed, de);
+  head.append(t, st, ops);
+  return head;
+}
+
+/* 期间区块尾部：总时长 / 进行中 */
+function buildSpanTail(sp) {
+  const tail = document.createElement("div");
+  tail.className = "span-tail";
+  if (sp.endTs) {
+    const d = document.createElement("span");
+    d.className = "d";
+    d.textContent = "共 " + fmtSpanDur(sp.endTs - sp.startTs);
+    tail.appendChild(d);
+  } else {
+    tail.textContent = "进行中…";
+  }
+  return tail;
+}
+
 /* 更早记录归档提示行：主页只显示当天，更早点这里去历史记录 */
 function buildArchiveRow(days) {
   const row = document.createElement("button");
@@ -3007,15 +3052,7 @@ function renderTimeline(flashId) {
         if (!spanBlocks[sp.id] && ts >= sp.startTs) {
           const blk = document.createElement("div");
           blk.className = "span-block";
-          const head = document.createElement("div");
-          head.className = "span-head";
-          const t = document.createElement("span");
-          t.className = "t";
-          t.textContent = "▣ " + sp.title;
-          const st = document.createElement("span");
-          st.textContent = fmtTime(sp.startTs) + " 开始";
-          head.append(t, st);
-          blk.appendChild(head);
+          blk.appendChild(buildSpanHead(sp));
           wrap.appendChild(blk);
           spanBlocks[sp.id] = blk;
           openSpan = { spanId: sp.id, el: blk };
@@ -3065,41 +3102,16 @@ function renderTimeline(flashId) {
     /* 组末收尾：还没显示出来的期间（没记录 / 结束后无后续记录） */
     for (const sp of spansOfDay) {
       const blk = spanBlocks[sp.id];
-      const tail = document.createElement("div");
-      tail.className = "span-tail";
       if (!blk) {
         /* 期间内一条记录都没有：单独渲染 头+尾 */
         const nb = document.createElement("div");
         nb.className = "span-block";
-        const head = document.createElement("div");
-        head.className = "span-head";
-        const t = document.createElement("span");
-        t.className = "t";
-        t.textContent = "▣ " + sp.title;
-        const st = document.createElement("span");
-        st.textContent = fmtTime(sp.startTs) + " 开始";
-        head.append(t, st);
-        nb.appendChild(head);
-        if (sp.endTs) {
-          const d = document.createElement("span");
-          d.className = "d";
-          d.textContent = "共 " + fmtSpanDur(sp.endTs - sp.startTs);
-          tail.appendChild(d);
-        } else {
-          tail.textContent = "进行中…";
-        }
-        nb.appendChild(tail);
+        nb.appendChild(buildSpanHead(sp));
+        nb.appendChild(buildSpanTail(sp));
         wrap.appendChild(nb);
-      } else if (sp.endTs) {
-        const d = document.createElement("span");
-        d.className = "d";
-        d.textContent = "共 " + fmtSpanDur(sp.endTs - sp.startTs);
-        tail.appendChild(d);
-        blk.appendChild(tail);
-        if (openSpan && openSpan.spanId === sp.id) openSpan = null;
       } else {
-        tail.textContent = "进行中…";
-        blk.appendChild(tail);
+        blk.appendChild(buildSpanTail(sp));
+        if (sp.endTs && openSpan && openSpan.spanId === sp.id) openSpan = null;
       }
     }
 
@@ -3451,7 +3463,15 @@ const editModal = document.getElementById("editModal");
 let editCtx = null; /* { kind: "rec" | "todo", id } */
 
 function openEdit(kind, id) {
-  if (kind === "rec") {
+  if (kind === "span") {
+    const sp = state.spans.find(x => x.id === id);
+    if (!sp) return;
+    editCtx = { kind, id };
+    document.getElementById("editTitle").textContent = "编辑期间";
+    document.getElementById("editText").value = sp.title;
+    document.getElementById("editDate").value = dayKey(sp.startTs);
+    document.getElementById("editTime").value = pad(new Date(sp.startTs).getHours()) + ":" + pad(new Date(sp.startTs).getMinutes());
+  } else if (kind === "rec") {
     const r = state.records.find(x => x.id === id);
     if (!r) return;
     editCtx = { kind, id };
@@ -3497,6 +3517,9 @@ document.getElementById("btnEditSave").addEventListener("click", () => {
   if (editCtx.kind === "rec") {
     const r = state.records.find(x => x.id === editCtx.id);
     if (r) { r.wordText = text; r.ts = ts; }
+  } else if (editCtx.kind === "span") {
+    const sp = state.spans.find(x => x.id === editCtx.id);
+    if (sp) { sp.title = text.slice(0, 20); sp.startTs = ts; }
   } else {
     const t = state.todos.find(x => x.id === editCtx.id);
     if (t) { t.text = text; t.createdAt = ts; }
@@ -3509,9 +3532,26 @@ document.getElementById("btnEditSave").addEventListener("click", () => {
 document.getElementById("btnEditDelete").addEventListener("click", () => {
   if (!editCtx) return;
   if (editCtx.kind === "rec") deleteRecord(editCtx.id, null);
+  else if (editCtx.kind === "span") deleteSpan(editCtx.id);
   else deleteTodo(editCtx.id);
   closeEdit();
 });
+
+/* 删除期间：只删期间本身，期间内的记录保留（变为普通记录） */
+function deleteSpan(id) {
+  const sp = state.spans.find(x => x.id === id);
+  if (!sp) return;
+  askConfirm("删除期间「" + sp.title + "」？\n（期间内的记录会保留，只是不再归入该期间）").then(ok => {
+    if (!ok) return;
+    state.spans = state.spans.filter(x => x.id !== id);
+    state.records.forEach(r => { if (r.spanId === id) delete r.spanId; });
+    saveState();
+    renderTimeline();
+    renderSpanBar();
+    renderHistory();
+    toast("已删除期间「" + sp.title + "」，记录已保留");
+  });
+}
 
 /* ============================================================
    V4.0 地点库：识别地址管理 + 单条记录手动标记
