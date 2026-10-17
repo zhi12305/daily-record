@@ -2788,9 +2788,10 @@ function startSpan(title) {
 function endSpan() {
   const sp = activeSpan();
   if (!sp) return;
-  /* 结束时间：取期间内最后一条记录的时间；期间内没记任何东西则用当前时间 */
+  /* 结束时间：取期间内最后一条记录的时间；期间内没记任何东西则用当前时间
+     兜底：结束时间绝不能早于开始时间（改了开始时间后可能出现） */
   const last = state.records.filter(r => r.spanId === sp.id).reduce((m, r) => Math.max(m, r.ts), 0);
-  sp.endTs = last || Date.now();
+  sp.endTs = Math.max(last || Date.now(), sp.startTs + 60000);
   saveState();
   renderSpanBar();
   renderTimeline();
@@ -3519,7 +3520,20 @@ document.getElementById("btnEditSave").addEventListener("click", () => {
     if (r) { r.wordText = text; r.ts = ts; }
   } else if (editCtx.kind === "span") {
     const sp = state.spans.find(x => x.id === editCtx.id);
-    if (sp) { sp.title = text.slice(0, 20); sp.startTs = ts; }
+    if (sp) {
+      const oldStart = sp.startTs;
+      sp.title = text.slice(0, 20);
+      sp.startTs = ts;
+      /* 改了开始时间后必须重算，否则会出现「结束 12:32」早于「开始 13:34」、时长还停在旧值 */
+      if (sp.endTs) {
+        const last = state.records.filter(r => r.spanId === sp.id).reduce((m, r) => Math.max(m, r.ts), 0);
+        if (last > sp.startTs) {
+          sp.endTs = last;                          /* 以期间内最后一条记录为准 */
+        } else if (sp.endTs <= sp.startTs) {
+          sp.endTs = sp.startTs + Math.max(60000, sp.endTs - oldStart); /* 无记录：保持原时长顺延 */
+        }
+      }
+    }
   } else {
     const t = state.todos.find(x => x.id === editCtx.id);
     if (t) { t.text = text; t.createdAt = ts; }
