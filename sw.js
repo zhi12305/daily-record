@@ -4,7 +4,7 @@
         导航请求「网络优先，离线回退缓存」——保证断网也能打开。
    升级：CACHE 版本号 +1，activate 时清理旧缓存。
    ============================================================ */
-const CACHE = "daily-record-v11";
+const CACHE = "daily-record-v12";
 
 const APP_SHELL = [
   "./",
