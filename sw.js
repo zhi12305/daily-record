@@ -88,5 +88,3 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
-
-/* build: v9-r2 */
