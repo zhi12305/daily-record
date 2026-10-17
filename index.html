@@ -633,7 +633,9 @@ a { color: inherit; text-decoration: none; }
 }
 .span-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: cloud-pulse 1s ease-in-out infinite; flex: none; }
 .span-title { font-weight: 620; }
-.span-elapsed { color: var(--text-2); margin-right: auto; }
+.span-elapsed { color: var(--text-2); }
+/* 有「补记」徽标时由它把「结束期间」推到右边 */
+.span-bar:has(.back-badge:not([hidden])) .span-elapsed { margin-right: 0; }
 .span-block { position: relative; margin: 6px 0 10px; padding: 2px 0 4px 12px; }
 .span-block::before {
   content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
@@ -1292,7 +1294,55 @@ a { color: inherit; text-decoration: none; }
 .confirm-btns { display: flex; gap: 10px; justify-content: flex-end; }
 .to-span-btn { width: 100%; margin: 4px 0 14px; justify-content: center; }
 
-/* ---- 云同步（共享码） ---- */
+/* ---------- 补记时间（自定义时间记录，V12） ---------- */
+.clock-btn {
+  flex: none; align-self: center;
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 34px; padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+  font-size: 12.5px; color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.clock-btn::before {
+  content: "";
+  width: 13px; height: 13px; flex: none;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9'/><path d='M12 7.5V12l3 1.8'/></svg>") center/contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='9'/><path d='M12 7.5V12l3 1.8'/></svg>") center/contain no-repeat;
+}
+.clock-btn:hover { color: var(--text); background: var(--surface-softer); }
+.clock-btn.on {
+  color: var(--accent-deep);
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1px rgba(143, 165, 136, .45);
+}
+.bt-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; flex: none; }
+.clock-btn.nudge { animation: clock-nudge 1.6s var(--ease) 2; }
+@keyframes clock-nudge { 50% { color: var(--accent-deep); background: var(--accent-soft); } }
+@media (max-width: 520px) { .clock-btn { padding: 0 10px; font-size: 12px; } }
+
+.back-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--accent-deep);
+  background: var(--accent-soft);
+  border-radius: var(--radius-pill);
+  padding: 4px 11px; margin: -6px 0 12px;
+  font-variant-numeric: tabular-nums;
+}
+.back-badge[hidden] { display: none; }
+.back-badge::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+
+.modal-back { width: min(380px, 92vw); }
+.back-quick { display: flex; flex-wrap: wrap; gap: 7px; margin: -2px 0 16px; }
+.back-quick .ghost-btn { background: var(--surface-soft); color: var(--text-2); font-size: 12.5px; padding: 6px 12px; }
+.back-quick .ghost-btn:hover { color: var(--accent-deep); background: var(--accent-soft); }
+.back-tip { font-size: 11.5px; color: var(--text-3); line-height: 1.5; max-width: 52%; }
+
+/* ---------- 云同步（共享码） ---------- */
 .cloud-status { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin: 4px 0 8px; }
 .cloud-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--accent); }
 .cloud-dot.busy { background: var(--m-oat, #DCC9A9); animation: cloud-pulse 1s ease-in-out infinite; }
@@ -1304,7 +1354,7 @@ a { color: inherit; text-decoration: none; }
   font-variant-numeric: tabular-nums; cursor: pointer; user-select: all;
   transition: background 160ms var(--ease);
 }
-.cloud-code:hover { background: var(--accent-soft, #EDF0EA); }
+.cloud-code:hover { background: var(--accent-soft); }
 .cloud-meta { font-size: 12px; color: var(--text-3); margin-bottom: 16px; text-align: center; }
 .cloud-hint { font-size: 12px; color: var(--text-3); line-height: 1.6; margin-top: 12px; }
 #cloudCodeInput { letter-spacing: .18em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
@@ -1792,8 +1842,9 @@ a { color: inherit; text-decoration: none; }
             <button type="button" class="primary-btn" id="btnComboGen" disabled>确认生成</button>
           </div>
         </div>
-        <form class="note-add" id="noteForm" autocomplete="off">
-          <input id="noteInput" class="pill-input" type="text" placeholder="记录点什么…，回车保存" maxlength="60">
+        <form class="note-add has-clock" id="noteForm" autocomplete="off">
+          <button type="button" class="clock-btn" data-clock data-back-open aria-label="选择要记到的时间" title="记到别的时间点（如刚才 14:20）">现在</button>
+          <input id="noteInput" class="pill-input" type="text" placeholder="记录点什么…，回车保存" data-ph="记录点什么…，回车保存" maxlength="60">
           <button type="button" class="ghost-btn span-btn" id="btnSpanStart" title="用输入框里的文字开始一个期间（一心多用）">期间</button>
           <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
         </form>
@@ -1803,14 +1854,16 @@ a { color: inherit; text-decoration: none; }
           <span class="span-elapsed" id="spanBarElapsed"></span>
           <button type="button" class="ghost-btn" id="btnSpanEnd">结束期间</button>
         </div>
+        <div class="back-badge" id="backBadge" hidden></div>
         <form class="note-add todo-add" id="todoInlineForm" autocomplete="off">
           <span class="ti-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/></svg></span>
           <input id="todoInlineInput" class="pill-input" type="text" placeholder="添加当天待办，回车保存" maxlength="60">
           <button type="submit" class="add-btn ti-add" aria-label="保存待办">+</button>
         </form>
         <div class="timeline" id="timeline"></div>
-        <form class="note-add" id="noteFormBottom" autocomplete="off">
-          <input id="noteInputBottom" class="pill-input" type="text" placeholder="继续记录…" maxlength="60">
+        <form class="note-add has-clock" id="noteFormBottom" autocomplete="off">
+          <button type="button" class="clock-btn" id="btnBackTime" data-clock data-back-open aria-label="选择要记到的时间" title="记到别的时间点（如刚才 14:20）">现在</button>
+          <input id="noteInputBottom" class="pill-input" type="text" placeholder="继续记录…" data-ph="继续记录…" maxlength="60">
           <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
         </form>
       </div>
@@ -1991,6 +2044,40 @@ a { color: inherit; text-decoration: none; }
       <div class="foot-right">
         <button class="ghost-btn" id="btnEditCancel">取消</button>
         <button class="primary-btn" id="btnEditSave">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 补记时间：选择这条记录要落在哪天几点 -->
+<div class="modal-mask" id="backModal" hidden>
+  <div class="modal modal-back" role="dialog" aria-modal="true" aria-labelledby="backTitle">
+    <h3 id="backTitle">记到什么时间</h3>
+    <div class="modal-sub">没空实时记的时候，事后把时间拨回去补上</div>
+    <div class="edit-time">
+      <div class="edit-field">
+        <span class="lbl">日期</span>
+        <input id="backDate" type="date">
+      </div>
+      <div class="edit-field">
+        <span class="lbl">时间</span>
+        <div class="tp-wrap" data-timefield>
+          <input id="backTime" class="tp-native" type="time" tabindex="-1" aria-hidden="true">
+          <button type="button" class="tp-trigger" data-tp-open>--:--</button>
+        </div>
+      </div>
+    </div>
+    <div class="back-quick">
+      <button type="button" class="ghost-btn" data-back-ago="10">10分钟前</button>
+      <button type="button" class="ghost-btn" data-back-ago="30">半小时前</button>
+      <button type="button" class="ghost-btn" data-back-ago="60">1小时前</button>
+      <button type="button" class="ghost-btn" id="backNowBtn">现在</button>
+    </div>
+    <div class="mg-foot">
+      <span class="back-tip">选好后点「保存」，输入框会显示所选时间</span>
+      <div class="foot-right">
+        <button class="ghost-btn" id="btnBackCancel">取消</button>
+        <button class="primary-btn" id="btnBackSave">保存</button>
       </div>
     </div>
   </div>
@@ -2636,7 +2723,14 @@ function tickClock() {
   document.getElementById("topClock").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
   document.getElementById("topDate").textContent =
     (d.getMonth() + 1) + "月" + d.getDate() + "日 周" + WEEK[d.getDay()];
+  /* 跨过零点：把「刚才」的补记状态清掉，输入框提示新的一天 */
+  if (lastDayKey !== dayKey(Date.now())) {
+    lastDayKey = dayKey(Date.now());
+    backReset(); /* 跨零点：补记状态清掉，避免把今天的记录记到昨天 */
+    if (typeof renderTimeline === "function") renderTimeline(); /* 新的一天：主页切到空白的今天 */
+  }
 }
+var lastDayKey = dayKey(Date.now());
 setInterval(tickClock, 30000);
 
 /* ============================================================
@@ -2774,12 +2868,23 @@ function renderWords() {
 
 /* 统一记录入口：生成 id + 时间戳，落库，渲染并定位到新行 */
 function pushRecord(fields) {
-  const rec = Object.assign({ id: uid(), ts: Date.now() }, fields);
-  /* 期间进行中：新记录自动归入当前期间（一心多用） */
+  /* 补记模式下，时间点由用户选定；否则取当前时刻 */
+  const ts = (isFinite(backTs) && backTs) ? backTs : Date.now();
+  const rec = Object.assign({ id: uid(), ts }, fields);
+  /* 期间进行中：记录自动归入当前期间（一心多用）；但如果补记到期间开始之前，就不塞进去 */
   const as = activeSpan();
-  if (as) rec.spanId = as.id;
+  if (as && ts >= as.startTs) rec.spanId = as.id;
   state.records.push(rec);
+  /* 补记模式：时间往后走一分钟，连续补记按顺序排列，不会堆在同一个点 */
+  if (isFinite(backTs) && backTs) { backTs = Math.min(backTs + 60000, Date.now()); backSyncTrigger(); }
   saveState();
+  /* 补记到更早的日期：主页只显示当天，直接跳到历史记录给用户看一眼 */
+  if (dayKey(ts) !== dayKey(Date.now())) {
+    refreshRecordViews();
+    location.hash = "#/history";
+    toast("已补记到 " + dayKey(ts) + " " + fmtTime(ts) + "（在历史记录里，主页只显示今天）", "看今天", () => { location.hash = "#/record"; });
+    return rec;
+  }
   renderTimeline(rec.id);
   renderSpanBar();
   return rec;
@@ -2795,11 +2900,16 @@ function startSpan(title) {
   const t = String(title || "").trim().slice(0, 20);
   if (!t) { toast("先在输入框写期间名称，再点「期间」"); return; }
   if (activeSpan()) { toast("已有进行中的期间，请先结束"); return; }
-  const sp = { id: uid(), title: t, startTs: Date.now(), endTs: 0 };
+  /* 补记模式下：期间从所选时间点开始（事后补一段「上课」也成立） */
+  const useBack = isFinite(backTs) && backTs && backTs <= Date.now();
+  const sp = { id: uid(), title: t, startTs: useBack ? backTs : Date.now(), endTs: 0 };
   state.spans.push(sp);
+  if (useBack) { backTs = null; backSyncTrigger(); backHintCheck(); }
   saveState();
   renderSpanBar();
-  toast("期间「" + t + "」开始，期间内的记录会归入其中");
+  renderTimeline();
+  if (useBack) toast("期间「" + t + "」从 " + fmtTime(sp.startTs) + " 开始，之后的记录会归入其中");
+  else toast("期间「" + t + "」开始，期间内的记录会归入其中");
 }
 function endSpan() {
   const sp = activeSpan();
@@ -2854,6 +2964,136 @@ noteFormBottom.addEventListener("submit", (e) => {
   noteInputBottom.value = "";
 });
 
+/* ============================================================
+   自定义时间记录（V12）：事后补记 —— 时间往后拨，归到那一天
+   · 点时钟按钮弹层里选「哪天 + 几点」，默认是刚刚
+   · 补记的时间早于另一天且已过零点 → 自动切到那一天，零点半打开也不丢
+   ============================================================ */
+const BACK_MODAL_ID = "backModal";
+let backTs = null;
+
+function backHiddenDOM(todayK) {
+  const recs = state.records.filter(r => r.ts && dayKey(r.ts) !== todayK).length;
+  const todos = state.todos.filter(t => t.createdAt && dayKey(t.createdAt) !== todayK).length;
+  return recs + todos;
+}
+
+/* 没补记时，输入框沿用原来的「继续记录…」 */
+function backPlaceholder() {
+  const d = new Date();
+  if (d.getHours() < 4) return "新的一天开始了，记得拨回昨天再记";
+  return "";
+}
+
+function backSyncTrigger() {
+  document.querySelectorAll("[data-back-open]").forEach(btn => {
+    if (!backTs) {
+      btn.textContent = "现在";
+      btn.classList.remove("on");
+      btn.title = "记到别的时间点（如刚才 14:20）";
+      return;
+    }
+    btn.innerHTML = '<span class="bt-dot" aria-hidden="true"></span>';
+    btn.appendChild(document.createTextNode(fmtTime(backTs)));
+    btn.classList.add("on");
+    let t = "补记：" + (dayKey(backTs) === dayKey(Date.now()) ? "今天" : dayKey(backTs)) + " " + fmtTime(backTs);
+    if (dayKey(backTs) !== dayKey(Date.now())) t += "（会归到这一天，主页仍显示今天）";
+    btn.title = t;
+  });
+}
+
+function openBackModal() {
+  backTs = backTs || Date.now();
+  const d = new Date(backTs);
+  document.getElementById("backDate").value = dayKey(backTs);
+  document.getElementById("backTime").value = pad(d.getHours()) + ":" + pad(d.getMinutes());
+  document.getElementById(BACK_MODAL_ID).hidden = false;
+}
+
+function closeBackModal() { document.getElementById(BACK_MODAL_ID).hidden = true; }
+
+function backReset() {
+  backTs = null;
+  backSyncTrigger();
+  backHintCheck();
+}
+
+function backBind() {
+  window.__backState = () => backTs;
+  window.__backSet = v => { backTs = v; syncBackState(); };
+  window.__backOpen = openBackModal;
+  window.__backClose = closeBackModal;
+  window.__backReset = backReset;
+  const modal = document.getElementById(BACK_MODAL_ID);
+  document.querySelectorAll("[data-back-open]").forEach(btn => btn.addEventListener("click", openBackModal));
+  /* 快选：10 分钟前 / 半小时前 / 1 小时前 —— 手机上点两下就补好了 */
+  modal.querySelectorAll("[data-back-ago]").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const ts = Date.now() - Number(btn.dataset.backAgo) * 60000;
+      document.getElementById("backDate").value = dayKey(ts);
+      const d = new Date(ts);
+      document.getElementById("backTime").value = pad(d.getHours()) + ":" + pad(d.getMinutes());
+    });
+  });
+  document.getElementById("backNowBtn").addEventListener("click", () => {
+    backTs = null;
+    backSyncTrigger();
+    backHintCheck();
+    closeBackModal();
+    toast("已切回「现在」");
+  });
+  document.getElementById("btnBackCancel").addEventListener("click", closeBackModal);
+  modal.addEventListener("click", (e) => { if (e.target === modal) closeBackModal(); });
+  document.getElementById("btnBackSave").addEventListener("click", () => {
+    const dv = document.getElementById("backDate").value;
+    const tv = document.getElementById("backTime").value;
+    if (!dv || !tv) { toast("请选择日期和时间"); return; }
+    const ts = new Date(dv + "T" + tv + ":00").getTime();
+    if (!isFinite(ts)) { toast("时间格式不正确"); return; }
+    if (ts > Date.now() + 5 * 60000) { toast("不能记到未来的时间"); return; }
+    backTs = ts;
+    backSyncTrigger();
+    backHintCheck();
+    closeBackModal();
+    const todayK = dayKey(Date.now());
+    if (dayKey(ts) === todayK) toast("补记时间 " + fmtTime(ts) + "，之后记的都会用这个时间往后排");
+    else toast("补记到 " + dayKey(ts) + " " + fmtTime(ts) + "，会归到那天的记录里", "改回现在", () => { backReset(); });
+  });
+}
+
+/* 补记状态一变：按钮 + 输入框提示 + 状态徽标一起同步（跨零点也走这里） */
+function syncBackState() {
+  backSyncTrigger();
+  backHintCheck();
+  if (typeof backBadge === "function") backBadge();
+}
+
+function backHintCheck() {
+  document.querySelectorAll(".has-clock .pill-input").forEach(input => {
+    if (backTs) {
+      input.placeholder = "补记 " + (dayKey(backTs) === dayKey(Date.now()) ? "" : dayKey(backTs).slice(5) + " ") + fmtTime(backTs) + " → 回车保存";
+    } else {
+      const tip = backPlaceholder();
+      input.placeholder = tip || input.dataset.ph || "继续记录…";
+    }
+  });
+  const clk = document.getElementById("btnBackTime");
+  const tip = backTs ? "" : backPlaceholder();
+  if (clk) clk.classList.toggle("nudge", !!tip);
+  if (typeof backBadge === "function") backBadge();
+}
+
+/* 状态条上的小徽标：现在补记到什么时候 */
+function backBadge() {
+  const el = document.getElementById("backBadge");
+  if (!el) return;
+  if (!backTs) { el.hidden = true; el.textContent = ""; return; }
+  const same = dayKey(backTs) === dayKey(Date.now());
+  el.hidden = false;
+  el.textContent = (same ? "补记 " : "补记 " + dayKey(backTs).slice(5) + " ") + fmtTime(backTs);
+  el.title = "之后的记录都会记到这个时间；点「现在」可切回";
+}
+
 /* 期间：开始 / 结束 */
 document.getElementById("btnSpanStart").addEventListener("click", () => {
   const t = noteInput.value.trim();
@@ -2862,6 +3102,8 @@ document.getElementById("btnSpanStart").addEventListener("click", () => {
   noteInput.value = "";
 });
 document.getElementById("btnSpanEnd").addEventListener("click", endSpan);
+backBind();
+backHintCheck();
 
 /* 当天/全部条目合并：记录 + 待办（按创建时间混排，正序） */
 function allItems() {
@@ -3143,6 +3385,7 @@ function renderTimeline(flashId) {
     const row = timelineEl.querySelector('.tl-item[data-id="' + flashId + '"]');
     if (row) row.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
+  backHintCheck();
 }
 
 function editBtnSvg() {
