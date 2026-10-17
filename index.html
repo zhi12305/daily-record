@@ -621,6 +621,38 @@ a { color: inherit; text-decoration: none; }
 .note-add.todo-add { margin-bottom: 18px; }
 .note-add.todo-add .ti-mark { color: var(--text-3); cursor: default; }
 
+/* ---- 期间（一心多用） ---- */
+.span-btn { flex: none; }
+.span-bar {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-pill, 14px);
+  padding: 8px 12px; margin: 0 0 14px;
+  font-size: 13px;
+}
+.span-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: cloud-pulse 1s ease-in-out infinite; flex: none; }
+.span-title { font-weight: 620; }
+.span-elapsed { color: var(--text-2); margin-right: auto; }
+.span-block { position: relative; margin: 6px 0 10px; padding: 2px 0 4px 12px; }
+.span-block::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  border-radius: 3px; background: var(--accent); opacity: .45;
+}
+.span-head, .span-tail {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12.5px; color: var(--text-2);
+  background: var(--accent-soft);
+  border-radius: 10px; padding: 6px 10px; margin: 6px 0;
+}
+.span-head .t { font-weight: 620; color: var(--text-1); }
+.span-tail .d { font-weight: 620; color: var(--text-1); }
+.span-archived {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  font-size: 12.5px; color: var(--text-2);
+  border-top: 1px dashed var(--line, #E4DFD8);
+  margin-top: 14px; padding-top: 10px;
+}
+
 /* ---------- V4.0 动线：地点识别 + A ↓ B ---------- */
 /* 记录行上的「地点」按钮 */
 .tl-place {
@@ -1758,14 +1790,25 @@ a { color: inherit; text-decoration: none; }
         </div>
         <form class="note-add" id="noteForm" autocomplete="off">
           <input id="noteInput" class="pill-input" type="text" placeholder="记录点什么…，回车保存" maxlength="60">
+          <button type="button" class="ghost-btn span-btn" id="btnSpanStart" title="用输入框里的文字开始一个期间（一心多用）">期间</button>
           <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
         </form>
+        <div class="span-bar" id="spanBar" hidden>
+          <span class="span-dot" aria-hidden="true"></span>
+          <span class="span-title" id="spanBarTitle"></span>
+          <span class="span-elapsed" id="spanBarElapsed"></span>
+          <button type="button" class="ghost-btn" id="btnSpanEnd">结束期间</button>
+        </div>
         <form class="note-add todo-add" id="todoInlineForm" autocomplete="off">
-          <span class="ti-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg></span>
+          <span class="ti-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/></svg></span>
           <input id="todoInlineInput" class="pill-input" type="text" placeholder="添加当天待办，回车保存" maxlength="60">
           <button type="submit" class="add-btn ti-add" aria-label="保存待办">+</button>
         </form>
         <div class="timeline" id="timeline"></div>
+        <form class="note-add" id="noteFormBottom" autocomplete="off">
+          <input id="noteInputBottom" class="pill-input" type="text" placeholder="继续记录…" maxlength="60">
+          <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
+        </form>
       </div>
     </section>
 
@@ -2249,12 +2292,13 @@ function defaultState() {
     ui: { sidebarCollapsed: false, lastNudge: 0, showMoves: true },
     words: DEFAULT_WORDS.map((w, i) => ({ id: "w" + (i + 1), text: w.text, color: w.color })),
     places: DEFAULT_PLACES.map((p, i) => ({ id: "p" + (i + 1), name: p })), // 识别地址库
-    records: [],   // { id, wordId, wordText, color, combo, placeId, noPlace, ts }
+    records: [],   // { id, wordId, wordText, color, combo, placeId, noPlace, spanId, ts }
+    spans: [],     // 期间（一心多用）：{ id, title, startTs, endTs }  endTs 为 0/空 = 进行中
     todos: [],     // { id, text, done, createdAt }
     ledger: [],    // { id, type, amount, category, note, ts }
     ledgerCats: LEDGER_CATS.map(c => ({ key: c.key, name: c.name, color: c.color })), // 可自定义分类
     comps: [],     // { id, name, url, deadline, poster, note, createdAt }  deadline = "YYYY-MM-DD"
-    health: [],    // { id, date, sleep, nap, hr }   sleep/nap 分钟, hr 次/分
+    health: [],    // { id, date, sleep, nap, hr }  sleep/nap 分钟、hr 次/分；未填为 null
     sync: defaultSync(), // 云同步连接信息（仅本地，不推云端）
   };
 }
@@ -2333,10 +2377,12 @@ function normalizeState(d) {
   }
   if (Array.isArray(d.words))   s.words   = d.words.filter(w => w && typeof w.text === "string").map(w => ({ id: String(w.id || uid()), text: w.text.slice(0, 10), color: validColor(w.color) }));
   if (Array.isArray(d.places))  s.places  = d.places.filter(p => p && typeof p.name === "string" && p.name.trim()).map(p => ({ id: String(p.id || uid()), name: p.name.trim().slice(0, 12) }));
-  if (Array.isArray(d.records)) s.records = d.records.filter(r => r && typeof r.ts === "number").map(r => ({ id: String(r.id || uid()), wordId: String(r.wordId || ""), wordText: String(r.wordText || "").slice(0, 60), color: validColor(r.color), combo: !!r.combo, placeId: String(r.placeId || ""), noPlace: !!r.noPlace, ts: r.ts }));
+  if (Array.isArray(d.records)) s.records = d.records.filter(r => r && typeof r.ts === "number").map(r => ({ id: String(r.id || uid()), wordId: String(r.wordId || ""), wordText: String(r.wordText || "").slice(0, 60), color: validColor(r.color), combo: !!r.combo, placeId: String(r.placeId || ""), noPlace: !!r.noPlace, spanId: String(r.spanId || ""), ts: r.ts }));
+  /* 期间（一心多用）：标题必填、时间合法才保留 */
+  if (Array.isArray(d.spans)) s.spans = d.spans.filter(sp => sp && typeof sp.title === "string" && sp.title.trim() && typeof sp.startTs === "number").map(sp => ({ id: String(sp.id || uid()), title: sp.title.trim().slice(0, 20), startTs: sp.startTs, endTs: Number(sp.endTs) > 0 ? Math.floor(Number(sp.endTs)) : 0 }));
   if (Array.isArray(d.todos))   s.todos   = d.todos.filter(t => t && typeof t.text === "string").map(t => ({ id: String(t.id || uid()), text: t.text.slice(0, 80), done: !!t.done, createdAt: Number(t.createdAt) || Date.now() }));
   if (Array.isArray(d.comps))   s.comps   = d.comps.filter(c => c && typeof c.name === "string" && c.name.trim()).map(c => ({ id: String(c.id || uid()), name: c.name.trim().slice(0, 40), url: String(c.url || "").slice(0, 300), deadline: validDate(c.deadline), poster: typeof c.poster === "string" ? c.poster.slice(0, 300000) : "", note: String(c.note || "").slice(0, 30), createdAt: Number(c.createdAt) || Date.now() }));
-  if (Array.isArray(d.health))  s.health  = d.health.filter(h => h && validDate(h.date)).map(h => ({ id: String(h.id || uid()), date: validDate(h.date), sleep: clampNum(h.sleep, 0, 24 * 60), nap: clampNum(h.nap, 0, 720), hr: clampNum(h.hr, 30, 220) }));
+  if (Array.isArray(d.health))  s.health  = d.health.filter(h => h && validDate(h.date)).map(h => ({ id: String(h.id || uid()), date: validDate(h.date), sleep: Number(h.sleep) > 0 ? clampNum(h.sleep, 0, 24 * 60) : null, nap: Number(h.nap) > 0 ? clampNum(h.nap, 0, 720) : null, hr: Number(h.hr) > 0 ? clampNum(h.hr, 30, 220) : null }));
   /* 记账分类：自定义列表（老数据没有该字段时用默认，并保证"其他"始终存在）
      注意：必须放在账目 ledger 之前解析，因为账目分类要按这张表校验 */
   if (Array.isArray(d.ledgerCats)) {
@@ -2711,10 +2757,55 @@ function renderWords() {
 /* 统一记录入口：生成 id + 时间戳，落库，渲染并定位到新行 */
 function pushRecord(fields) {
   const rec = Object.assign({ id: uid(), ts: Date.now() }, fields);
+  /* 期间进行中：新记录自动归入当前期间（一心多用） */
+  const as = activeSpan();
+  if (as) rec.spanId = as.id;
   state.records.push(rec);
   saveState();
   renderTimeline(rec.id);
+  renderSpanBar();
   return rec;
+}
+
+/* ============================================================
+   期间（一心多用）：如「上课」——期间内做的所有事都归入其中
+   ============================================================ */
+function activeSpan() {
+  return state.spans.find(s => !s.endTs) || null;
+}
+function startSpan(title) {
+  const t = String(title || "").trim().slice(0, 20);
+  if (!t) { toast("先在输入框写期间名称，再点「期间」"); return; }
+  if (activeSpan()) { toast("已有进行中的期间，请先结束"); return; }
+  const sp = { id: uid(), title: t, startTs: Date.now(), endTs: 0 };
+  state.spans.push(sp);
+  saveState();
+  renderSpanBar();
+  toast("期间「" + t + "」开始，期间内的记录会归入其中");
+}
+function endSpan() {
+  const sp = activeSpan();
+  if (!sp) return;
+  /* 结束时间：取期间内最后一条记录的时间；期间内没记任何东西则用当前时间 */
+  const last = state.records.filter(r => r.spanId === sp.id).reduce((m, r) => Math.max(m, r.ts), 0);
+  sp.endTs = last || Date.now();
+  saveState();
+  renderSpanBar();
+  renderTimeline();
+  toast("期间「" + sp.title + "」结束");
+}
+function fmtSpanDur(ms) {
+  const min = Math.max(1, Math.round(ms / 60000));
+  if (min < 60) return min + " 分钟";
+  return Math.floor(min / 60) + " 小时 " + (min % 60) + " 分钟";
+}
+function renderSpanBar() {
+  const bar = document.getElementById("spanBar");
+  const sp = activeSpan();
+  if (!sp) { bar.hidden = true; return; }
+  bar.hidden = false;
+  document.getElementById("spanBarTitle").textContent = sp.title;
+  document.getElementById("spanBarElapsed").textContent = "已进行 " + fmtSpanDur(Date.now() - sp.startTs);
 }
 
 function addRecord(word) {
@@ -2732,6 +2823,26 @@ noteForm.addEventListener("submit", (e) => {
   pushRecord({ wordId: "", wordText: text, color: MORANDI[0].hex });
   noteInput.value = "";
 });
+
+/* 最新记录下方：第二个输入框（同一逻辑） */
+const noteFormBottom = document.getElementById("noteFormBottom");
+const noteInputBottom = document.getElementById("noteInputBottom");
+noteFormBottom.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const text = noteInputBottom.value.trim();
+  if (!text) return;
+  pushRecord({ wordId: "", wordText: text, color: MORANDI[0].hex });
+  noteInputBottom.value = "";
+});
+
+/* 期间：开始 / 结束 */
+document.getElementById("btnSpanStart").addEventListener("click", () => {
+  const t = noteInput.value.trim();
+  if (!t) { toast("先在输入框写期间名称（如：上课），再点「期间」"); return; }
+  startSpan(t);
+  noteInput.value = "";
+});
+document.getElementById("btnSpanEnd").addEventListener("click", endSpan);
 
 /* 当天/全部条目合并：记录 + 待办（按创建时间混排，正序） */
 function allItems() {
@@ -2799,20 +2910,55 @@ function buildMoves(items) {
 
 function showMovesOn() { return state.ui.showMoves !== false; }
 
+/* 更早记录归档提示行：主页只显示当天，更早点这里去历史记录 */
+function buildArchiveRow(days) {
+  const row = document.createElement("button");
+  row.type = "button";
+  row.className = "span-archived";
+  const left = document.createElement("span");
+  left.textContent = "更早的 " + days + " 天已自动归档";
+  const right = document.createElement("span");
+  right.className = "t";
+  right.textContent = "去历史记录看 →";
+  row.append(left, right);
+  row.addEventListener("click", () => {
+    location.hash = "#/history";
+    route();
+  });
+  return row;
+}
+
 function renderTimeline(flashId) {
   timelineEl.innerHTML = "";
 
-  if (!state.records.length && !state.todos.length) {
-    timelineEl.appendChild(emptyState("还没有记录", "点击上方按钮、输入文字，或加一条当天待办"));
+  const todayK = dayKey(Date.now());
+  const allGroupsCount = (() => {
+    const keys = new Set();
+    state.records.forEach(r => keys.add(dayKey(r.ts)));
+    state.todos.forEach(t => keys.add(dayKey(t.createdAt)));
+    return keys.size;
+  })();
+
+  /* 需求：主页只显示当天的记录；更早的自动归档到「历史记录」 */
+  const todayRecs = state.records.filter(r => dayKey(r.ts) === todayK).length;
+  const todayTodos = state.todos.filter(t => dayKey(t.createdAt) === todayK).length;
+
+  if (!todayRecs && !todayTodos) {
+    const box = emptyState("今天还没有记录", "点击上方按钮、输入文字，或加一条当天待办");
+    timelineEl.appendChild(box);
+    if (allGroupsCount > 0) timelineEl.appendChild(buildArchiveRow(allGroupsCount));
     return;
   }
 
-  const items = allItems();
+  const items = allItems().filter(it => dayKey(itemTs(it)) === todayK);
 
   /* 相邻两条记录的时长差（只显示时长，不带"距上条"前缀；待办不参与） */
   const recs = [...state.records].sort((a, b) => a.ts - b.ts);
   const diffMap = {};
-  for (let i = 1; i < recs.length; i++) diffMap[recs[i].id] = fmtDiff(recs[i].ts - recs[i - 1].ts);
+  for (let i = 1; i < recs.length; i++) {
+    if (dayKey(recs[i].ts) !== dayKey(recs[i - 1].ts)) continue; /* 跨天的差不算（主页只显示当天） */
+    diffMap[recs[i].id] = fmtDiff(recs[i].ts - recs[i - 1].ts);
+  }
 
   /* 日期分组（从早到晚，类似日记） */
   const groups = [];
@@ -2847,9 +2993,43 @@ function renderTimeline(flashId) {
     }
 
     let lastHour = null;
+    /* 期间（一心多用）：当天的期间，按开始时间排序 */
+    const spansOfDay = state.spans.filter(s => dayKey(s.startTs) === g.key).sort((a, b) => a.startTs - b.startTs);
+    const spanBlocks = {};   /* spanId -> 区块容器 */
+    let openSpan = null;     /* 当前正在填充的区块 */
+
+    const closeSpanIfNeeded = (ts) => {
+      const sp = openSpan && state.spans.find(x => x.id === openSpan.spanId);
+      if (sp && sp.endTs && ts > sp.endTs) openSpan = null;
+    };
+    const openSpanIfNeeded = (ts) => {
+      for (const sp of spansOfDay) {
+        if (!spanBlocks[sp.id] && ts >= sp.startTs) {
+          const blk = document.createElement("div");
+          blk.className = "span-block";
+          const head = document.createElement("div");
+          head.className = "span-head";
+          const t = document.createElement("span");
+          t.className = "t";
+          t.textContent = "▣ " + sp.title;
+          const st = document.createElement("span");
+          st.textContent = fmtTime(sp.startTs) + " 开始";
+          head.append(t, st);
+          blk.appendChild(head);
+          wrap.appendChild(blk);
+          spanBlocks[sp.id] = blk;
+          openSpan = { spanId: sp.id, el: blk };
+        }
+      }
+    };
+
     for (const it of g.items) {
+      const its = itemTs(it);
+      closeSpanIfNeeded(its);
+      openSpanIfNeeded(its);
+
       /* V3.0：每跨过一个整小时，插一条横线隔开时间段 */
-      const hour = Math.floor(itemTs(it) / 3600000);
+      const hour = Math.floor(its / 3600000);
       if (lastHour !== null && hour !== lastHour) {
         const div = document.createElement("div");
         div.className = "hour-divider";
@@ -2857,22 +3037,77 @@ function renderTimeline(flashId) {
         hl.className = "hour-label";
         hl.textContent = pad(new Date(hour * 3600000).getHours()) + ":00";
         div.appendChild(hl);
-        wrap.appendChild(div);
+        (openSpan ? openSpan.el : wrap).appendChild(div);
       }
       lastHour = hour;
+
+      /* 记录显式归属的期间优先；待办按时间窗落在打开的区块里 */
+      let target = wrap;
+      if (it.kind === "rec" && it.data.spanId && spanBlocks[it.data.spanId]) {
+        target = spanBlocks[it.data.spanId];
+        const sp = state.spans.find(x => x.id === it.data.spanId);
+        if (sp && !sp.endTs) openSpan = { spanId: sp.id, el: target };
+      } else if (openSpan) {
+        target = openSpan.el;
+      }
 
       if (it.kind === "rec") {
         /* V4.0：这条记录换了新地点 —— 先画出 A ↓ B 的动线。
            此时动线右侧的时长就是这段间隔，行内不再重复显示一遍 */
         const mv = moveByRec[it.data.id];
-        if (mv) wrap.appendChild(buildMoveRow(mv));
-        wrap.appendChild(buildRecRow(it.data, mv ? null : diffMap[it.data.id], flashId));
+        if (mv) target.appendChild(buildMoveRow(mv));
+        target.appendChild(buildRecRow(it.data, mv ? null : diffMap[it.data.id], flashId));
       } else {
-        wrap.appendChild(buildTodoRow(it.data, flashId));
+        target.appendChild(buildTodoRow(it.data, flashId));
       }
     }
+
+    /* 组末收尾：还没显示出来的期间（没记录 / 结束后无后续记录） */
+    for (const sp of spansOfDay) {
+      const blk = spanBlocks[sp.id];
+      const tail = document.createElement("div");
+      tail.className = "span-tail";
+      if (!blk) {
+        /* 期间内一条记录都没有：单独渲染 头+尾 */
+        const nb = document.createElement("div");
+        nb.className = "span-block";
+        const head = document.createElement("div");
+        head.className = "span-head";
+        const t = document.createElement("span");
+        t.className = "t";
+        t.textContent = "▣ " + sp.title;
+        const st = document.createElement("span");
+        st.textContent = fmtTime(sp.startTs) + " 开始";
+        head.append(t, st);
+        nb.appendChild(head);
+        if (sp.endTs) {
+          const d = document.createElement("span");
+          d.className = "d";
+          d.textContent = "共 " + fmtSpanDur(sp.endTs - sp.startTs);
+          tail.appendChild(d);
+        } else {
+          tail.textContent = "进行中…";
+        }
+        nb.appendChild(tail);
+        wrap.appendChild(nb);
+      } else if (sp.endTs) {
+        const d = document.createElement("span");
+        d.className = "d";
+        d.textContent = "共 " + fmtSpanDur(sp.endTs - sp.startTs);
+        tail.appendChild(d);
+        blk.appendChild(tail);
+        if (openSpan && openSpan.spanId === sp.id) openSpan = null;
+      } else {
+        tail.textContent = "进行中…";
+        blk.appendChild(tail);
+      }
+    }
+
     timelineEl.appendChild(wrap);
   }
+
+  /* 更早的记录入口（已自动归档到历史记录） */
+  if (allGroupsCount > 1) timelineEl.appendChild(buildArchiveRow(allGroupsCount - 1));
 
   /* 新记录追加在底部，平滑滚动到可见区域 */
   if (flashId) {
@@ -2996,7 +3231,8 @@ function buildTodoRow(t, flashId) {
   mark.type = "button";
   mark.className = "ti-mark";
   mark.setAttribute("aria-label", t.done ? "标记为未完成" : "完成这项待办");
-  mark.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>';
+  /* 未完成 = 空方框；完成 = 方框打勾，状态一眼可辨 */
+  mark.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/>' + (t.done ? '<path d="m8.5 12.2 2.4 2.4 4.6-5"/>' : '') + '</svg>';
   mark.addEventListener("click", () => toggleTodo(t.id));
 
   const time = document.createElement("span");
@@ -4524,7 +4760,12 @@ function renderHealth() {
 
     const v = document.createElement("span");
     v.className = "v";
-    v.innerHTML = "睡眠 <b>" + fmtDur(h.sleep) + "</b><span class=\"sep\">·</span>午睡 <b>" + fmtDur(h.nap) + "</b><span class=\"sep\">·</span>心率 <b>" + h.hr + " 次/分</b>";
+    /* 未填的项不显示（老数据里的 0 值也视为未填） */
+    const segs = [];
+    if (h.sleep) segs.push("睡眠 <b>" + fmtDur(h.sleep) + "</b>");
+    if (h.nap)   segs.push("午睡 <b>" + fmtDur(h.nap) + "</b>");
+    if (h.hr)    segs.push("心率 <b>" + h.hr + " 次/分</b>");
+    v.innerHTML = segs.length ? segs.join('<span class="sep">·</span>') : '<span style="opacity:.5">当天未填数据</span>';
 
     const ops = document.createElement("div");
     ops.className = "ops";
@@ -4551,8 +4792,10 @@ function renderHealthReport() {
   const box = document.getElementById("healthReport");
   box.innerHTML = "";
   const week = lastNDays(7).map(k => findHealthByDate(k)).filter(Boolean);
-  const avg = (f) => week.length ? week.reduce((s, h) => s + f(h), 0) / week.length : null;
+  /* 平均只算填了该项的天：没填不算 0，避免拉低均值 / 显示误导性数字 */
+  const avg = (f) => { const vals = week.map(f).filter(v => typeof v === "number" && v > 0); return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null; };
   const sleep = avg(h => h.sleep), nap = avg(h => h.nap), hr = avg(h => h.hr);
+  const filled = week.filter(h => (h.sleep || 0) + (h.nap || 0) + (h.hr || 0) > 0).length;
   const stat = (k, val) => {
     const el = document.createElement("div");
     el.className = "lg-stat";
@@ -4568,7 +4811,7 @@ function renderHealthReport() {
   stat("近 7 天平均睡眠", sleep === null ? "—" : fmtDur(sleep));
   stat("近 7 天平均午睡", nap === null ? "—" : fmtDur(nap));
   stat("近 7 天平均心率", hr === null ? "—" : Math.round(hr) + " 次/分");
-  stat("记录天数", week.length + " / 7 天");
+  stat("记录天数", filled + " / 7 天");
 }
 
 /* ---------- 周视图：睡眠柱状 + 心率折线（纯 SVG，ins 低饱和） ---------- */
@@ -4577,7 +4820,7 @@ function renderHealthChart() {
   box.innerHTML = "";
   const data = lastNDays(7).map(k => {
     const h = findHealthByDate(k);
-    return { key: k, sleep: h ? h.sleep / 60 : null, hr: h ? h.hr : null };
+    return { key: k, sleep: h && h.sleep ? h.sleep / 60 : null, hr: h && h.hr ? h.hr : null };
   });
   if (!data.some(d => d.sleep !== null || d.hr !== null)) {
     box.innerHTML = '<div class="empty">最近 7 天还没有数据，录入后这里会出现图表</div>';
@@ -4663,9 +4906,9 @@ healthForm.addEventListener("submit", (e) => {
 
   const fields = {
     date,
-    sleep: isFinite(sleepH) ? clampNum(Math.round(sleepH * 60), 0, 1440) : 0,
-    nap: isFinite(nap) ? clampNum(nap, 0, 720) : 0,
-    hr: isFinite(hr) ? clampNum(hr, 30, 220) : 0,
+    sleep: isFinite(sleepH) ? clampNum(Math.round(sleepH * 60), 0, 1440) : null,
+    nap: isFinite(nap) ? clampNum(nap, 0, 720) : null,
+    hr: isFinite(hr) ? clampNum(hr, 30, 220) : null,
   };
 
   if (healthEditId) {
