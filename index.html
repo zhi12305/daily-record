@@ -79,6 +79,7 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+[hidden] { display: none !important; }
 html { -webkit-text-size-adjust: 100%; }
 
 body {
@@ -631,6 +632,7 @@ a { color: inherit; text-decoration: none; }
   padding: 8px 12px; margin: 0 0 14px;
   font-size: 13px;
 }
+.span-bar[hidden] { display: none; }
 .span-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: cloud-pulse 1s ease-in-out infinite; flex: none; }
 .span-title { font-weight: 620; }
 .span-elapsed { color: var(--text-2); }
@@ -651,12 +653,57 @@ a { color: inherit; text-decoration: none; }
 .span-head .span-ops { margin-left: auto; display: flex; gap: 4px; }
 .span-head .tl-edit, .span-head .tl-del { width: 24px; height: 24px; }
 .span-tail .d { font-weight: 620; color: var(--text-1); }
-.span-archived {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  font-size: 12.5px; color: var(--text-2);
-  border-top: 1px dashed var(--line, #E4DFD8);
-  margin-top: 14px; padding-top: 10px;
+.span-head.live { box-shadow: inset 0 0 0 1px rgba(143, 165, 136, .5); }
+
+/* ---------- 高频词折叠 ---------- */
+#wordsHead { display: inline-flex; align-items: center; gap: 6px; }
+.fold-btn {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center;
+  color: var(--text-3);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
 }
+.fold-btn:hover { background: var(--surface-soft); color: var(--text); }
+.fold-btn .fd, .fold-hint .fd {
+  width: 7px; height: 7px;
+  border-right: 1.6px solid currentColor;
+  border-bottom: 1.6px solid currentColor;
+  transform: rotate(45deg) translate(-1px, -1px);
+  transition: transform 200ms var(--ease);
+}
+#btnWordsFold[aria-expanded="false"] .fd { transform: rotate(-135deg) translate(-1px, -1px); }
+.words-folded .word-row, .words-folded .combo-bar { display: none; }
+.fold-hint {
+  display: flex; align-items: center; gap: 7px;
+  width: 100%;
+  font-size: 12.5px; color: var(--text-3);
+  padding: 7px 12px; margin-bottom: 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+  text-align: left;
+}
+.fold-hint[hidden] { display: none; }
+.fold-hint .fd { transform: rotate(45deg); color: var(--text-2); }
+.fold-hint:hover { color: var(--text-2); }
+.span-head .st { font-variant-numeric: tabular-nums; }
+/* 期间内动线 */
+.span-move {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  font-size: 12px; color: var(--text-3);
+  padding: 2px 0 4px 2px; margin: 0 0 2px;
+}
+.span-move .mv-chain { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.span-move .node {
+  background: var(--surface-soft); padding: 2px 10px; border-radius: var(--radius-pill);
+  color: var(--text); font-size: 12.5px; letter-spacing: .02em;
+}
+.span-move .arw { color: var(--text-2); font-size: 12px; opacity: .8; }
+.span-move .mv-label { letter-spacing: .06em; }
+/* 历史某一天的补记行 */
+.his-add { display: flex; gap: 9px; align-items: center; margin: 6px 0 8px; padding: 8px 4px 0; border-top: 1px dashed var(--line, #E4DFD8); }
+.his-add .pill-input { font-size: 13px; padding: 8px 14px; }
+.his-add .his-clock { height: 30px; }
+.his-add-btn { width: 32px; height: 32px; font-size: 17px; }
 
 /* ---------- V4.0 动线：地点识别 + A ↓ B ---------- */
 /* 记录行上的「地点」按钮 */
@@ -840,7 +887,8 @@ a { color: inherit; text-decoration: none; }
 .his-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  flex-wrap: wrap;          /* 按钮多、屏幕窄时让标签换到下一行，不挤正文 */
+  gap: 6px 10px;
   padding: 8px 10px 8px 4px;
   border-radius: var(--radius-md);
   transition: background var(--dur) var(--ease);
@@ -848,12 +896,13 @@ a { color: inherit; text-decoration: none; }
 .his-row:hover { background: var(--surface-softer); }
 .his-row .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; margin-left: 6px; }
 .his-row .t { font-size: 13px; color: var(--text-2); font-variant-numeric: tabular-nums; min-width: 44px; flex: none; }
-.his-row .w { font-size: 14px; min-width: 0; word-break: break-word; }
+.his-row .w { font-size: 14px; flex: 1 1 40%; min-width: 3.6em; word-break: break-word; overflow-wrap: anywhere; }
 .his-row.ti { background: var(--surface-softer); }
 .his-row.ti .w { color: var(--text-2); }
 .his-row.ti.done .w { text-decoration: line-through; color: var(--text-3); }
 .his-row .ti-pill { margin-left: auto; }
-.his-row .tl-edit { margin-left: auto; }
+.his-row .tl-edit { margin-left: 0; flex: none; }
+.his-row .tl-del { flex: none; }
 .his-row.ti .ti-pill + .tl-edit { margin-left: 0; }
 /* 展开历史里每条记录距上一条的时长 */
 .his-diff {
@@ -867,6 +916,25 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: .02em;
 }
 .his-row .his-diff + .place-tag { margin-left: 0; }
+/* 手机窄屏：时长 / 地点 / 编辑 / 删除 都留在正文同一行，只让正文自身折行 */
+.his-row .tl-edit { margin-left: auto; }
+.his-ops { display: inline-flex; align-items: center; gap: 2px; flex: none; margin-left: auto; }
+.his-ops .tl-edit { margin-left: 0; }
+@media (max-width: 560px) {
+  .his-row { gap: 4px 6px; padding-right: 2px; }
+  .his-row .his-diff { order: 5; font-size: 10.5px; padding: 1px 5px; }
+  .his-row .t { min-width: 38px; font-size: 12.5px; }
+  .his-row .dot { margin-left: 2px; }
+  .his-row .place-tag { order: 5; font-size: 11px; padding: 1px 7px; }
+  .his-row .ti-pill { order: 5; }
+  .his-ops { order: 8; }
+  .his-row .tl-edit { width: 20px; height: 20px; }
+  .his-row .tl-edit svg { width: 13px; height: 13px; }
+  .his-row .tl-del { width: 20px; height: 20px; }
+  .his-row .tl-del svg { width: 12px; height: 12px; }
+  .his-row .ti-pill { font-size: 10.5px; padding: 1px 6px; }
+  .his-row .w { min-width: 0; flex: 1 1 30%; }
+}
 .his-row .his-diff ~ .tl-edit,
 .his-row .his-diff ~ .ti-pill { margin-left: auto; }
 /* 展开历史顶部：当日睡眠卡 */
@@ -1686,6 +1754,9 @@ a { color: inherit; text-decoration: none; }
 .h-field input:focus { outline: none; }
 .h-field input[type="date"] { width: 128px; text-align: left; }
 .h-field .u { font-size: 11.5px; color: var(--text-3); padding-right: 5px; }
+.h-field.h-sleep input { width: 38px; }
+.h-field input::-webkit-outer-spin-button, .h-field input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.h-field input[type="number"] { -moz-appearance: textfield; }
 .h-form .primary-btn { margin-left: auto; }
 
 .h-week { margin: 22px 0 18px; }
@@ -1826,7 +1897,7 @@ a { color: inherit; text-decoration: none; }
     <!-- 视图一：记录台（默认主页） -->
     <section class="view active" id="view-record">
       <header class="view-head">
-        <h2>高频记录</h2>
+        <h2 id="wordsHead">高频记录<button type="button" class="fold-btn" id="btnWordsFold" aria-expanded="true" title="收起高频词"><span class="fd"></span></button></h2>
         <div class="head-right">
           <button class="ghost-btn" id="btnMovesToggle" title="显示 / 隐藏时间线里的动线">动线 · 开</button>
           <button class="ghost-btn" id="btnPlaces" title="管理识别地址">地点</button>
@@ -1943,9 +2014,14 @@ a { color: inherit; text-decoration: none; }
       <div class="card">
         <form class="h-form" id="healthForm" autocomplete="off">
           <label class="h-field">日期 <input id="hDate" type="date" required></label>
-          <label class="h-field">睡眠 <input id="hSleep" type="number" min="0" max="24" step="0.5" placeholder="7.5"><span class="u">小时</span></label>
-          <label class="h-field">午睡 <input id="hNap" type="number" min="0" max="360" step="5" placeholder="25"><span class="u">分钟</span></label>
-          <label class="h-field">心率 <input id="hHr" type="number" min="30" max="220" step="1" placeholder="62"><span class="u">次/分</span></label>
+          <div class="h-field h-sleep">睡眠
+            <input id="hSleepH" type="number" min="0" max="24" step="1" inputmode="numeric" placeholder="" aria-label="睡眠小时">
+            <span class="u">小时</span>
+            <input id="hSleepM" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="" aria-label="睡眠分钟">
+            <span class="u">分</span>
+          </div>
+          <label class="h-field">午睡 <input id="hNap" type="number" min="0" max="720" step="1" inputmode="numeric" placeholder="" aria-label="午睡分钟"><span class="u">分钟</span></label>
+          <label class="h-field">心率 <input id="hHr" type="number" min="0" max="220" step="1" inputmode="numeric" placeholder="" aria-label="心率"><span class="u">次/分</span></label>
           <button type="submit" class="primary-btn" id="btnHealthSave">记录</button>
           <button type="button" class="ghost-btn" id="btnHealthCancel" hidden>取消</button>
         </form>
@@ -2394,7 +2470,7 @@ function defaultSync() {
 function defaultState() {
   return {
     version: 2,
-    ui: { sidebarCollapsed: false, lastNudge: 0, showMoves: true },
+    ui: { sidebarCollapsed: false, lastNudge: 0, showMoves: true, wordsFolded: false },
     words: DEFAULT_WORDS.map((w, i) => ({ id: "w" + (i + 1), text: w.text, color: w.color })),
     places: DEFAULT_PLACES.map((p, i) => ({ id: "p" + (i + 1), name: p })), // 识别地址库
     records: [],   // { id, wordId, wordText, color, combo, placeId, noPlace, spanId, ts }
@@ -2477,6 +2553,7 @@ function normalizeState(d) {
   if (!d || typeof d !== "object") return s;
   if (d.ui && typeof d.ui === "object") {
     s.ui.sidebarCollapsed = !!d.ui.sidebarCollapsed;
+    s.ui.wordsFolded = !!d.ui.wordsFolded; /* 高频词收起状态：刷新后保持 */
     s.ui.lastNudge = Number(d.ui.lastNudge) > 0 ? Math.floor(Number(d.ui.lastNudge)) : 0;
     s.ui.showMoves = d.ui.showMoves !== false;
   }
@@ -2686,6 +2763,7 @@ function route() {
   const name = VIEWS.includes(v) ? v : "record";
   document.querySelectorAll(".view").forEach(el => el.classList.toggle("active", el.id === "view-" + name));
   document.querySelectorAll(".nav-item[data-view]").forEach(el => el.classList.toggle("active", el.dataset.view === name));
+  if (name === "record") { renderTimeline(); renderSpanBar(); backHintCheck(); }
   if (name === "ledger") renderLedger();
   if (name === "history") renderHistory();
   if (name === "comps") renderComps();
@@ -2732,6 +2810,8 @@ function tickClock() {
 }
 var lastDayKey = dayKey(Date.now());
 setInterval(tickClock, 30000);
+/* 期间「已进行」每秒走一格，结束按钮按下去时长也对得上 */
+setInterval(() => { if (typeof renderSpanBar === "function") renderSpanBar(); }, 1000);
 
 /* ============================================================
    模块一：高频词 + 文字记录（时间线）
@@ -2878,11 +2958,11 @@ function pushRecord(fields) {
   /* 补记模式：时间往后走一分钟，连续补记按顺序排列，不会堆在同一个点 */
   if (isFinite(backTs) && backTs) { backTs = Math.min(backTs + 60000, Date.now()); backSyncTrigger(); }
   saveState();
-  /* 补记到更早的日期：主页只显示当天，直接跳到历史记录给用户看一眼 */
+  /* 补记到更早的日期：主页只显示当天，这条会进历史记录 */
   if (dayKey(ts) !== dayKey(Date.now())) {
     refreshRecordViews();
-    location.hash = "#/history";
-    toast("已补记到 " + dayKey(ts) + " " + fmtTime(ts) + "（在历史记录里，主页只显示今天）", "看今天", () => { location.hash = "#/record"; });
+    openHistoryKey = dayKey(ts);
+    toast("已补记到 " + dayKey(ts) + " " + fmtTime(ts) + "，在历史记录里", "去看看", () => { location.hash = "#/history"; route(); });
     return rec;
   }
   renderTimeline(rec.id);
@@ -2913,15 +2993,14 @@ function startSpan(title) {
 }
 function endSpan() {
   const sp = activeSpan();
-  if (!sp) return;
-  /* 结束时间：取期间内最后一条记录的时间；期间内没记任何东西则用当前时间
-     兜底：结束时间绝不能早于开始时间（改了开始时间后可能出现） */
-  const last = state.records.filter(r => r.spanId === sp.id).reduce((m, r) => Math.max(m, r.ts), 0);
-  sp.endTs = Math.max(last || Date.now(), sp.startTs + 60000);
+  if (!sp) { renderSpanBar(); return; }
+  /* 结束时间一律取「此刻」——期间内有没有记录、过了多久都按真实时长算。
+     只有一种情况要往后推：开始时间在将来（极少见），保证结束晚于开始 */
+  sp.endTs = Math.max(Date.now(), sp.startTs + 1000);
   saveState();
   renderSpanBar();
   renderTimeline();
-  toast("期间「" + sp.title + "」结束");
+  toast("期间「" + sp.title + "」结束，共 " + fmtSpanDur(sp.endTs - sp.startTs));
 }
 function fmtSpanDur(ms) {
   const min = Math.max(1, Math.round(ms / 60000));
@@ -2930,11 +3009,12 @@ function fmtSpanDur(ms) {
 }
 function renderSpanBar() {
   const bar = document.getElementById("spanBar");
-  const sp = activeSpan();
-  if (!sp) { bar.hidden = true; return; }
+  /* 只认「没有结束时间」的期间；已结束立刻收起，不在页面上继续显示"进行中" */
+  const sp = state.spans.find(x => !x.endTs) || null;
+  if (!sp || (sp.endTs && sp.endTs > 0)) { bar.hidden = true; return; }
   bar.hidden = false;
   document.getElementById("spanBarTitle").textContent = sp.title;
-  document.getElementById("spanBarElapsed").textContent = "已进行 " + fmtSpanDur(Date.now() - sp.startTs);
+  document.getElementById("spanBarElapsed").textContent = "已进行 " + fmtSpanDur(Math.max(0, Date.now() - sp.startTs));
 }
 
 function addRecord(word) {
@@ -3002,10 +3082,14 @@ function backSyncTrigger() {
   });
 }
 
-function openBackModal() {
+/* 弹层里的「保存」交给谁：默认改全局补记状态（记录台），历史页会换成自己的回调 */
+let backAfterSave = null;
+
+function openBackModal(seed) {
+  const base = (isFinite(seed) && seed) ? seed : (backTs || Date.now());
   backTs = backTs || Date.now();
-  const d = new Date(backTs);
-  document.getElementById("backDate").value = dayKey(backTs);
+  const d = new Date(base);
+  document.getElementById("backDate").value = dayKey(base);
   document.getElementById("backTime").value = pad(d.getHours()) + ":" + pad(d.getMinutes());
   document.getElementById(BACK_MODAL_ID).hidden = false;
 }
@@ -3025,7 +3109,7 @@ function backBind() {
   window.__backClose = closeBackModal;
   window.__backReset = backReset;
   const modal = document.getElementById(BACK_MODAL_ID);
-  document.querySelectorAll("[data-back-open]").forEach(btn => btn.addEventListener("click", openBackModal));
+  document.querySelectorAll("[data-back-open]").forEach(btn => btn.addEventListener("click", () => { backAfterSave = null; openBackModal(); }));
   /* 快选：10 分钟前 / 半小时前 / 1 小时前 —— 手机上点两下就补好了 */
   modal.querySelectorAll("[data-back-ago]").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -3042,8 +3126,8 @@ function backBind() {
     closeBackModal();
     toast("已切回「现在」");
   });
-  document.getElementById("btnBackCancel").addEventListener("click", closeBackModal);
-  modal.addEventListener("click", (e) => { if (e.target === modal) closeBackModal(); });
+  document.getElementById("btnBackCancel").addEventListener("click", () => { backAfterSave = null; closeBackModal(); });
+  modal.addEventListener("click", (e) => { if (e.target === modal) { backAfterSave = null; closeBackModal(); } });
   document.getElementById("btnBackSave").addEventListener("click", () => {
     const dv = document.getElementById("backDate").value;
     const tv = document.getElementById("backTime").value;
@@ -3051,10 +3135,12 @@ function backBind() {
     const ts = new Date(dv + "T" + tv + ":00").getTime();
     if (!isFinite(ts)) { toast("时间格式不正确"); return; }
     if (ts > Date.now() + 5 * 60000) { toast("不能记到未来的时间"); return; }
+    closeBackModal();
+    /* 历史页的补记行：只改这一行的时间，不动记录台的补记状态 */
+    if (backAfterSave) { const fn = backAfterSave; backAfterSave = null; fn(ts); return; }
     backTs = ts;
     backSyncTrigger();
     backHintCheck();
-    closeBackModal();
     const todayK = dayKey(Date.now());
     if (dayKey(ts) === todayK) toast("补记时间 " + fmtTime(ts) + "，之后记的都会用这个时间往后排");
     else toast("补记到 " + dayKey(ts) + " " + fmtTime(ts) + "，会归到那天的记录里", "改回现在", () => { backReset(); });
@@ -3093,6 +3179,41 @@ function backBadge() {
   el.textContent = (same ? "补记 " : "补记 " + dayKey(backTs).slice(5) + " ") + fmtTime(backTs);
   el.title = "之后的记录都会记到这个时间；点「现在」可切回";
 }
+
+/* ---------- 高频词板块：可展开 / 可收缩（收起来后只留一行"已收起"提示，方便一键展开） ---------- */
+function applyWordsFold() {
+  const card = document.querySelector("#view-record .card");
+  const folded = !!state.ui.wordsFolded;
+  if (card) card.classList.toggle("words-folded", folded);
+  const btn = document.getElementById("btnWordsFold");
+  if (btn) {
+    btn.setAttribute("aria-expanded", folded ? "false" : "true");
+    btn.title = folded ? "展开高频词" : "收起高频词";
+  }
+  let mini = document.getElementById("foldHint");
+  if (folded) {
+    if (!mini) {
+      mini = document.createElement("button");
+      mini.type = "button";
+      mini.id = "foldHint";
+      mini.className = "fold-hint";
+      mini.innerHTML = '<span class="fd"></span>高频词已收起，点这里展开';
+      mini.addEventListener("click", () => { state.ui.wordsFolded = false; saveState(); applyWordsFold(); });
+      const row = document.getElementById("wordRow");
+      if (row && row.parentNode) row.parentNode.insertBefore(mini, row);
+    }
+    mini.hidden = false;
+  } else if (mini) {
+    mini.hidden = true;
+  }
+}
+
+document.getElementById("btnWordsFold").addEventListener("click", () => {
+  state.ui.wordsFolded = !state.ui.wordsFolded;
+  saveState();
+  applyWordsFold();
+});
+applyWordsFold();
 
 /* 期间：开始 / 结束 */
 document.getElementById("btnSpanStart").addEventListener("click", () => {
@@ -3174,12 +3295,13 @@ function showMovesOn() { return state.ui.showMoves !== false; }
 /* 期间区块头部：标题 + 开始时间 + 编辑/删除（参考 memos 的行内操作） */
 function buildSpanHead(sp) {
   const head = document.createElement("div");
-  head.className = "span-head";
+  head.className = "span-head" + (sp.endTs ? "" : " live");
   const t = document.createElement("span");
   t.className = "t";
   t.textContent = "▣ " + sp.title;
   const st = document.createElement("span");
-  st.textContent = fmtTime(sp.startTs) + " 开始" + (sp.endTs ? " · " + fmtTime(sp.endTs) + " 结束" : "");
+  st.className = "st";
+  st.textContent = fmtTime(sp.startTs) + " 开始" + (sp.endTs ? " · " + fmtTime(sp.endTs) + " 结束" : " · 进行中");
   const ops = document.createElement("span");
   ops.className = "span-ops";
   const ed = document.createElement("button");
@@ -3209,57 +3331,71 @@ function buildSpanTail(sp) {
     d.textContent = "共 " + fmtSpanDur(sp.endTs - sp.startTs);
     tail.appendChild(d);
   } else {
-    tail.textContent = "进行中…";
+    tail.textContent = "进行中…（期间内记的内容都会归到这里）";
   }
   return tail;
 }
 
-/* 更早记录归档提示行：主页只显示当天，更早点这里去历史记录 */
-function buildArchiveRow(days) {
-  const row = document.createElement("button");
-  row.type = "button";
-  row.className = "span-archived";
-  const left = document.createElement("span");
-  left.textContent = "更早的 " + days + " 天已自动归档";
-  const right = document.createElement("span");
-  right.className = "t";
-  right.textContent = "去历史记录看 →";
-  row.append(left, right);
-  row.addEventListener("click", () => {
-    location.hash = "#/history";
-    route();
+/* 期间内的动线：这段时间里换过地点，就在区块顶部给一条 A → B */
+function buildSpanInnerMove(sp, inner) {
+  const wrap = document.createElement("div");
+  wrap.className = "span-move";
+  const recs = inner.filter(x => x.kind === "rec").map(x => x.data);
+  if (!recs.length) return wrap;
+  const { seq } = buildMoves(recs.map(r => ({ kind: "rec", data: r })));
+  if (seq.length < 2) return wrap;
+  const lab = document.createElement("span");
+  lab.className = "mv-label";
+  lab.textContent = "动线";
+  const chain = document.createElement("span");
+  chain.className = "mv-chain";
+  seq.forEach((sNode, i) => {
+    if (i) {
+      const arw = document.createElement("span");
+      arw.className = "arw";
+      arw.textContent = "→";
+      chain.appendChild(arw);
+    }
+    const node = document.createElement("span");
+    node.className = "node";
+    node.textContent = sNode.place.name;
+    chain.appendChild(node);
   });
-  return row;
+  const cnt = document.createElement("span");
+  cnt.className = "span-move-cnt";
+  cnt.textContent = seq.length + " 个地点";
+  wrap.append(lab, chain, cnt);
+  return wrap;
 }
 
 function renderTimeline(flashId) {
   timelineEl.innerHTML = "";
 
   const todayK = dayKey(Date.now());
-  const allGroupsCount = (() => {
-    const keys = new Set();
-    state.records.forEach(r => keys.add(dayKey(r.ts)));
-    state.todos.forEach(t => keys.add(dayKey(t.createdAt)));
-    return keys.size;
-  })();
-
   /* 需求：主页只显示当天的记录；更早的自动归档到「历史记录」 */
   const todayRecs = state.records.filter(r => dayKey(r.ts) === todayK).length;
   const todayTodos = state.todos.filter(t => dayKey(t.createdAt) === todayK).length;
 
-  if (!todayRecs && !todayTodos) {
+  /* 今天有期间（哪怕期间内一条记录都没有）也算有内容，不能落进"今天还没有记录" */
+  const todaySpans = state.spans.filter(sp => {
+    if (!sp.endTs) return true; /* 进行中的一定显示 */
+    return dayKey(sp.endTs) === todayK || dayKey(sp.startTs) === todayK;
+  }).length;
+  if (!todayRecs && !todayTodos && !todaySpans) {
     const box = emptyState("今天还没有记录", "点击上方按钮、输入文字，或加一条当天待办");
     timelineEl.appendChild(box);
-    if (allGroupsCount > 0) timelineEl.appendChild(buildArchiveRow(allGroupsCount));
-    return;
+    return; /* 底部不再放"去历史记录"的跳转条：容易误触，侧栏已有入口 */
   }
 
   const items = allItems().filter(it => dayKey(itemTs(it)) === todayK);
+  /* 只有期间、没有任何记录/待办时：也要建出今天的日期分组，否则区块无处可挂 */
+  if (!items.length) items.push({ kind: "_anchor", data: { ts: Date.now(), createdAt: Date.now() } });
 
   /* 相邻两条记录的时长差（只显示时长，不带"距上条"前缀；待办不参与） */
   const recs = [...state.records].sort((a, b) => a.ts - b.ts);
   const diffMap = {};
   for (let i = 1; i < recs.length; i++) {
+    if (!recs[i].ts || !recs[i - 1].ts) continue;
     if (dayKey(recs[i].ts) !== dayKey(recs[i - 1].ts)) continue; /* 跨天的差不算（主页只显示当天） */
     diffMap[recs[i].id] = fmtDiff(recs[i].ts - recs[i - 1].ts);
   }
@@ -3297,32 +3433,98 @@ function renderTimeline(flashId) {
     }
 
     let lastHour = null;
-    /* 期间（一心多用）：当天的期间，按开始时间排序 */
-    const spansOfDay = state.spans.filter(s => dayKey(s.startTs) === g.key).sort((a, b) => a.startTs - b.startTs);
-    const spanBlocks = {};   /* spanId -> 区块容器 */
-    let openSpan = null;     /* 当前正在填充的区块 */
+    /* 期间（一心多用）：当天的期间 + 跨过零点的前一晚期间，按开始时间排序 */
+    const spansOfDay = state.spans.filter(s => {
+      const kStart = dayKey(s.startTs);
+      const kEnd = s.endTs ? dayKey(s.endTs) : "";
+      /* 跨零点的期间（23:30 开始、00:20 结束）归到「结束那天」，避免它凭空消失 */
+      if (kStart !== kEnd && kEnd) return kEnd === g.key;
+      return kStart === g.key;
+    }).sort((a, b) => a.startTs - b.startTs);
 
-    const closeSpanIfNeeded = (ts) => {
-      const sp = openSpan && state.spans.find(x => x.id === openSpan.spanId);
-      if (sp && sp.endTs && ts > sp.endTs) openSpan = null;
+    /* 先把每个期间渲染成独立区块（时间段内的事都归进去），再按时间顺序拼回时间线 */
+    const blockOf = {};   /* spanId -> { el, ts } */
+    const plainItems = []; /* 不在任何期间里的事项：记录 + 待办 */
+    const recSpanOf = (r) => {
+      if (!r.spanId) return null;
+      const sp = state.spans.find(x => x.id === r.spanId);
+      if (!sp) return null;
+      /* 归属的期间必须是本页可见的（同一天 / 跨零点延续到今天） */
+      if (!spansOfDay.some(x => x.id === sp.id)) return null;
+      return sp;
     };
-    const openSpanIfNeeded = (ts) => {
-      for (const sp of spansOfDay) {
-        if (!spanBlocks[sp.id] && ts >= sp.startTs) {
-          const blk = document.createElement("div");
-          blk.className = "span-block";
-          blk.appendChild(buildSpanHead(sp));
-          wrap.appendChild(blk);
-          spanBlocks[sp.id] = blk;
-          openSpan = { spanId: sp.id, el: blk };
+
+    /* 区块构建：期间内的事项按时间正序装进去；一条都没有也要显示（空期间） */
+    for (const sp of spansOfDay) {
+      const blk = document.createElement("div");
+      blk.className = "span-block";
+      blk.appendChild(buildSpanHead(sp));
+      blockOf[sp.id] = blk;
+      /* 期间内的事项按时间正序装进来 */
+      const inner = g.items.filter(it => {
+        if (it.kind === "rec") { const spx = recSpanOf(it.data); return !!spx && spx.id === sp.id; }
+        const t = itemTs(it);
+        return t >= sp.startTs && (!sp.endTs || t <= sp.endTs);
+      });
+      if (inner.length) blk.appendChild(buildSpanInnerMove(sp, inner)); /* 期间内也要能动线 */
+      for (const it of inner) {
+        if (it.kind === "rec") {
+          const mv = moveByRec[it.data.id];
+          if (mv) blk.appendChild(buildMoveRow(mv));
+          blk.appendChild(buildRecRow(it.data, mv ? null : diffMap[it.data.id], flashId));
+        } else {
+          blk.appendChild(buildTodoRow(it.data, flashId));
         }
       }
-    };
+      blk.appendChild(buildSpanTail(sp));
+    }
 
+    /* 不在期间里的事项 */
     for (const it of g.items) {
+      if (it.kind === "_anchor") continue;
+      if (it.kind === "rec" && recSpanOf(it.data)) continue;
+      if (it.kind !== "rec" && it.kind !== "todo") continue;
+      if (it.kind === "todo") {
+        const t = itemTs(it);
+        const inSpan = spansOfDay.some(sp => t >= sp.startTs && (!sp.endTs || t <= sp.endTs));
+        if (inSpan) continue;
+      }
+      plainItems.push(it);
+    }
+
+    /* 按时间把「普通事项」和「期间区块」拼起来 */
+    const seq = [];
+    for (const it of plainItems) seq.push({ ts: itemTs(it), kind: "item", it });
+    for (const sp of spansOfDay) {
+      /* 排序锚点：期间的开始时间；跨零点延续过来的用当天 0 点 */
+      let anchor = dayKey(sp.startTs) === g.key ? sp.startTs : new Date(g.key + "T00:00:00").getTime();
+      /* 嵌套期间：外层 10:40 开始，内层 10:45 开始——内层紧贴外层头部之下，
+         但绝不插到外层开始之前的那条普通记录前面 */
+      const outer = spansOfDay.find(o => o.id !== sp.id && o.startTs < sp.startTs && (!o.endTs || o.endTs >= sp.startTs));
+      if (outer) anchor = Math.max(anchor, outer.startTs + 1);
+      seq.push({ ts: anchor, kind: "span", sp });
+    }
+    /*
+      排序规则：同一时间点「先开始的期间」排前面，
+      这样外层期间（10:40 上课）不会因为内层期间（10:45 起了个"1"）而落到后面。
+      内层期间会跟在外层之后插入，视觉上像嵌套。
+    */
+    seq.sort((a, b) => {
+      if (a.ts !== b.ts) return a.ts - b.ts;
+      if (a.kind === "span" && b.kind !== "span") return -1;
+      if (b.kind === "span" && a.kind !== "span") return 1;
+      return 0;
+    });
+
+    /* 内层期间若在外层期间开始之后才开始，并到外层之外没意义：直接按开始时间顺序即可 */
+    for (const node of seq) {
+      if (node.kind === "span") {
+        wrap.appendChild(blockOf[node.sp.id]);
+        lastHour = null; /* 期间区块内部已有自己的时间，跨出后重新按整点分隔 */
+        continue;
+      }
+      const it = node.it;
       const its = itemTs(it);
-      closeSpanIfNeeded(its);
-      openSpanIfNeeded(its);
 
       /* V3.0：每跨过一个整小时，插一条横线隔开时间段 */
       const hour = Math.floor(its / 3600000);
@@ -3333,52 +3535,25 @@ function renderTimeline(flashId) {
         hl.className = "hour-label";
         hl.textContent = pad(new Date(hour * 3600000).getHours()) + ":00";
         div.appendChild(hl);
-        (openSpan ? openSpan.el : wrap).appendChild(div);
+        wrap.appendChild(div);
       }
       lastHour = hour;
-
-      /* 记录显式归属的期间优先；待办按时间窗落在打开的区块里 */
-      let target = wrap;
-      if (it.kind === "rec" && it.data.spanId && spanBlocks[it.data.spanId]) {
-        target = spanBlocks[it.data.spanId];
-        const sp = state.spans.find(x => x.id === it.data.spanId);
-        if (sp && !sp.endTs) openSpan = { spanId: sp.id, el: target };
-      } else if (openSpan) {
-        target = openSpan.el;
-      }
 
       if (it.kind === "rec") {
         /* V4.0：这条记录换了新地点 —— 先画出 A ↓ B 的动线。
            此时动线右侧的时长就是这段间隔，行内不再重复显示一遍 */
         const mv = moveByRec[it.data.id];
-        if (mv) target.appendChild(buildMoveRow(mv));
-        target.appendChild(buildRecRow(it.data, mv ? null : diffMap[it.data.id], flashId));
+        if (mv) wrap.appendChild(buildMoveRow(mv));
+        wrap.appendChild(buildRecRow(it.data, mv ? null : diffMap[it.data.id], flashId));
       } else {
-        target.appendChild(buildTodoRow(it.data, flashId));
-      }
-    }
-
-    /* 组末收尾：还没显示出来的期间（没记录 / 结束后无后续记录） */
-    for (const sp of spansOfDay) {
-      const blk = spanBlocks[sp.id];
-      if (!blk) {
-        /* 期间内一条记录都没有：单独渲染 头+尾 */
-        const nb = document.createElement("div");
-        nb.className = "span-block";
-        nb.appendChild(buildSpanHead(sp));
-        nb.appendChild(buildSpanTail(sp));
-        wrap.appendChild(nb);
-      } else {
-        blk.appendChild(buildSpanTail(sp));
-        if (sp.endTs && openSpan && openSpan.spanId === sp.id) openSpan = null;
+        wrap.appendChild(buildTodoRow(it.data, flashId));
       }
     }
 
     timelineEl.appendChild(wrap);
   }
 
-  /* 更早的记录入口（已自动归档到历史记录） */
-  if (allGroupsCount > 1) timelineEl.appendChild(buildArchiveRow(allGroupsCount - 1));
+  /* 更早的记录不再在底部放跳转条（易误触）：侧栏「历史记录」进入 */
 
   /* 新记录追加在底部，平滑滚动到可见区域 */
   if (flashId) {
@@ -4455,6 +4630,8 @@ document.getElementById("btnPasteExtract").addEventListener("click", () => {
 /* ============================================================
    V2 模块五：健康数据
    ============================================================ */
+let openHistoryKey = null; /* 历史里展开着的那一天：改完数据后不收起 */
+
 function renderHistory() {
   const listEl = document.getElementById("historyList");
   const countEl = document.getElementById("historyCount");
@@ -4526,20 +4703,16 @@ function renderHistory() {
 
     /* 当日睡眠：展开历史时首要展示 */
     const hRec = findHealthByDate(g.key);
-    if (hRec) {
+    if (hRec && (hRec.sleep || hRec.nap || hRec.hr)) {
       const slp = document.createElement("div");
       slp.className = "his-sleep";
       const moon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z"/></svg>';
-      slp.innerHTML =
-        '<span class="ic">' + moon + '</span>' +
-        '<span class="k">睡眠</span>' +
-        '<span class="v">' + fmtDur(hRec.sleep) + '</span>' +
-        '<span class="sep">·</span>' +
-        '<span class="k">午睡</span>' +
-        '<span class="v">' + fmtDur(hRec.nap) + '</span>' +
-        '<span class="sep">·</span>' +
-        '<span class="k">心率</span>' +
-        '<span class="v">' + (hRec.hr || "—") + ' 次/分</span>';
+      /* 只显示真正填了的项，没填的不占位、不显示"— 次/分" */
+      const parts = [];
+      if (hRec.sleep) parts.push('<span class="k">睡眠</span><span class="v">' + fmtSleep(hRec.sleep) + '</span>');
+      if (hRec.nap) parts.push('<span class="k">午睡</span><span class="v">' + fmtDur(hRec.nap) + '</span>');
+      if (hRec.hr) parts.push('<span class="k">心率</span><span class="v">' + hRec.hr + ' 次/分</span>');
+      slp.innerHTML = '<span class="ic">' + moon + '</span>' + (parts.length ? parts.join('<span class="sep">·</span>') : '<span class="v">当天没填数据</span>');
       body.appendChild(slp);
     }
 
@@ -4636,13 +4809,88 @@ function renderHistory() {
       edit.setAttribute("aria-label", it.kind === "rec" ? "编辑这条记录" : "编辑这项待办");
       edit.innerHTML = editBtnSvg();
       edit.addEventListener("click", () => openEdit(it.kind, it.data.id));
-      row.appendChild(edit);
+
+      /* 历史里同样能删（改时间 / 改内容走上面那支笔） */
+      const del = document.createElement("button");
+      del.className = "tl-del";
+      del.setAttribute("aria-label", "删除");
+      del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      del.addEventListener("click", () => {
+        if (it.kind === "rec") deleteRecord(it.data.id, row);
+        else deleteTodo(it.data.id);
+      });
+
+      /* 两个图标包成一组：窄屏时整组换行，不会一个留上一个掉下去 */
+      const ops = document.createElement("span");
+      ops.className = "his-ops";
+      ops.append(edit, del);
+      row.appendChild(ops);
 
       body.appendChild(row);
     });
 
-    head.addEventListener("click", () => day.classList.toggle("open"));
-    day.append(head, sum, body);
+    /* 历史某一天里追加补记：直接给这一天记一条，时间默认该天最后一条之后 */
+    const addForm = document.createElement("form");
+    addForm.className = "his-add";
+    addForm.dataset.key = g.key;
+    addForm.autocomplete = "off";
+    const addTime = document.createElement("button");
+    addTime.type = "button";
+    addTime.className = "clock-btn his-clock";
+    const lastTs = g.items.reduce((m, x) => Math.max(m, itemTs(x)), 0);
+    let addAt = new Date(lastTs + 60000);
+    if (dayKey(addAt.getTime()) !== g.key) addAt = new Date(g.key + "T12:00:00");
+    addTime.textContent = fmtTime(addAt.getTime());
+    addTime.title = "这条记录的时间点，点一下可改";
+    const refreshAddTime = () => { addTime.textContent = fmtTime(addAt.getTime()); };
+    addTime.addEventListener("click", () => {
+      openBackModal(addAt.getTime());
+      /* 选完时间后写回这条补记行 */
+      backAfterSave = (ts) => { addAt = new Date(ts); refreshAddTime(); };
+    });
+    const addInput = document.createElement("input");
+    addInput.className = "pill-input";
+    addInput.type = "text";
+    addInput.maxLength = 60;
+    addInput.placeholder = "补记这一天的事…，回车保存";
+    const addBtn = document.createElement("button");
+    addBtn.type = "submit";
+    addBtn.className = "add-btn his-add-btn";
+    addBtn.setAttribute("aria-label", "保存到这一天");
+    addBtn.textContent = "+";
+    addForm.append(addTime, addInput, addBtn);
+    addForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const text = addInput.value.trim();
+      if (!text) return;
+      const ts = addAt.getTime();
+      /* 禁止记到未来 */
+      if (ts > Date.now() + 5 * 60000) { toast("这条时间还没到，换个时间再记"); return; }
+      /*
+        注意：不用 pushRecord —— 它会把这天当成"今天"去渲染、还会污染全局补记时间。
+        这里只落一条记录，归到这一天（期间归属按时间窗判断）。
+      */
+      const rec = { id: uid(), ts, wordId: "", wordText: text, color: MORANDI[0].hex };
+      const spHere = state.spans.find(x => ts >= x.startTs && (!x.endTs || ts <= x.endTs));
+      if (spHere) rec.spanId = spHere.id;
+      state.records.push(rec);
+      saveState();
+      addInput.value = "";
+      addAt = new Date(Math.min(ts + 60000, Date.now()));
+      refreshAddTime();
+      openHistoryKey = g.key;
+      renderHistory();
+      renderTimeline();
+      toast("已补记到 " + dateLabelParts(g.key).full + " " + fmtTime(ts));
+    });
+
+    /* 展开/收起：点日期条切换；首次进入如果还开着，保持原样 */
+    if (openHistoryKey === g.key) day.classList.add("open");
+    head.addEventListener("click", () => {
+      day.classList.toggle("open");
+      openHistoryKey = day.classList.contains("open") ? g.key : null;
+    });
+    day.append(head, sum, body, addForm);
     listEl.appendChild(day);
   }
 }
@@ -5084,7 +5332,8 @@ document.getElementById("btnCatDefault").addEventListener("click", () => {
    ============================================================ */
 const healthForm = document.getElementById("healthForm");
 const hDate = document.getElementById("hDate");
-const hSleep = document.getElementById("hSleep");
+const hSleepH = document.getElementById("hSleepH");
+const hSleepM = document.getElementById("hSleepM");
 const hNap = document.getElementById("hNap");
 const hHr = document.getElementById("hHr");
 const btnHealthSave = document.getElementById("btnHealthSave");
@@ -5138,7 +5387,7 @@ function renderHealth() {
     v.className = "v";
     /* 未填的项不显示（老数据里的 0 值也视为未填） */
     const segs = [];
-    if (h.sleep) segs.push("睡眠 <b>" + fmtDur(h.sleep) + "</b>");
+    if (h.sleep) segs.push("睡眠 <b>" + fmtSleep(h.sleep) + "</b>");
     if (h.nap)   segs.push("午睡 <b>" + fmtDur(h.nap) + "</b>");
     if (h.hr)    segs.push("心率 <b>" + h.hr + " 次/分</b>");
     v.innerHTML = segs.length ? segs.join('<span class="sep">·</span>') : '<span style="opacity:.5">当天未填数据</span>';
@@ -5171,6 +5420,7 @@ function renderHealthReport() {
   /* 平均只算填了该项的天：没填不算 0，避免拉低均值 / 显示误导性数字 */
   const avg = (f) => { const vals = week.map(f).filter(v => typeof v === "number" && v > 0); return vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : null; };
   const sleep = avg(h => h.sleep), nap = avg(h => h.nap), hr = avg(h => h.hr);
+  window.__healthAvg = { sleep, nap, hr };
   const filled = week.filter(h => (h.sleep || 0) + (h.nap || 0) + (h.hr || 0) > 0).length;
   const stat = (k, val) => {
     const el = document.createElement("div");
@@ -5184,7 +5434,7 @@ function renderHealthReport() {
     el.append(kk, vv);
     box.appendChild(el);
   };
-  stat("近 7 天平均睡眠", sleep === null ? "—" : fmtDur(sleep));
+  stat("近 7 天平均睡眠", sleep === null ? "—" : fmtSleep(Math.round(sleep)));
   stat("近 7 天平均午睡", nap === null ? "—" : fmtDur(nap));
   stat("近 7 天平均心率", hr === null ? "—" : Math.round(hr) + " 次/分");
   stat("记录天数", filled + " / 7 天");
@@ -5248,8 +5498,16 @@ function renderHealthChart() {
 
 /* ---------- 录入 / 编辑 ---------- */
 function resetHealthForm() {
-  hSleep.value = ""; hNap.value = ""; hHr.value = "";
+  hSleepH.value = ""; hSleepM.value = ""; hNap.value = ""; hHr.value = "";
   hDate.value = dayKey(Date.now());
+}
+
+/* 分钟 → 「7 小时 10 分」；整点不带 0 分 */
+function fmtSleep(min) {
+  const m = Math.max(0, Math.round(Number(min) || 0));
+  const h = Math.floor(m / 60), rm = m % 60;
+  if (!h) return rm + " 分钟";
+  return rm ? h + " 小时 " + rm + " 分" : h + " 小时";
 }
 
 function exitHealthEdit() {
@@ -5261,12 +5519,13 @@ function exitHealthEdit() {
 function fillHealthForm(h) {
   healthEditId = h.id;
   hDate.value = h.date;
-  hSleep.value = h.sleep ? String(Math.round((h.sleep / 60) * 10) / 10) : "";
+  hSleepH.value = h.sleep && Math.floor(h.sleep / 60) ? String(Math.floor(h.sleep / 60)) : "";
+  hSleepM.value = h.sleep && h.sleep % 60 ? String(h.sleep % 60) : "";
   hNap.value = h.nap ? String(h.nap) : "";
   hHr.value = h.hr ? String(h.hr) : "";
   btnHealthSave.textContent = "保存修改";
   btnHealthCancel.hidden = false;
-  hSleep.focus();
+  hSleepH.focus();
 }
 
 btnHealthCancel.addEventListener("click", () => { exitHealthEdit(); resetHealthForm(); });
@@ -5275,16 +5534,20 @@ healthForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const date = hDate.value;
   if (!validDate(date)) { toast("请选择日期"); return; }
-  const sleepH = parseFloat(hSleep.value);
+  /* 睡眠：小时 + 分钟两栏，留空就是没填，不填任何数字也不算 0 */
+  const sh = parseInt(hSleepH.value, 10);
+  const sm = parseInt(hSleepM.value, 10);
+  const sleepMin = (isFinite(sh) || isFinite(sm)) ? (isFinite(sh) ? sh : 0) * 60 + (isFinite(sm) ? sm : 0) : null;
   const nap = parseInt(hNap.value, 10);
   const hr = parseInt(hHr.value, 10);
-  if (!isFinite(sleepH) && !isFinite(nap) && !isFinite(hr)) { toast("至少填一项：睡眠 / 午睡 / 心率"); return; }
+  if (sleepMin === null && !isFinite(nap) && !isFinite(hr)) { toast("至少填一项：睡眠 / 午睡 / 心率"); return; }
+  if (sleepMin !== null && (sleepMin <= 0 || sleepMin > 1440)) { toast("睡眠时长要大于 0 且不超过 24 小时"); return; }
 
   const fields = {
     date,
-    sleep: isFinite(sleepH) ? clampNum(Math.round(sleepH * 60), 0, 1440) : null,
+    sleep: sleepMin === null ? null : sleepMin,
     nap: isFinite(nap) ? clampNum(nap, 0, 720) : null,
-    hr: isFinite(hr) ? clampNum(hr, 30, 220) : null,
+    hr: isFinite(hr) ? clampNum(hr, 0, 220) : null,
   };
 
   if (healthEditId) {
