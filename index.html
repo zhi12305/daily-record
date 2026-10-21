@@ -281,22 +281,40 @@ a { color: inherit; text-decoration: none; }
   padding: 24px 24px 20px;
 }
 
-/* ---------- 模块一：高频词按钮排 ---------- */
+/* ---------- 模块一：高频词按钮排（紧凑网格 + 限高内部滚动） ---------- */
 .word-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
+  --wr-h: 232px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  align-content: start;
+  gap: 7px;
   margin-bottom: 14px;
+  /* 词再多也不把整页撑长：最高约 5 行，多出来的在框内上下滑 */
+  max-height: var(--wr-h);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 2px 2px 2px 0;
+  scrollbar-width: thin;
+  /* 底部渐隐：暗示「下面还有」，不然截断得很生硬 */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 18px), transparent 100%);
 }
+/* 没超出（没得滑）就不加渐隐 */
+.word-row.no-fade { mask-image: none; -webkit-mask-image: none; }
+.word-row::-webkit-scrollbar { width: 6px; }
+.word-row::-webkit-scrollbar-thumb { background: rgba(0,0,0,.10); border-radius: 3px; }
+.word-row::-webkit-scrollbar-track { background: transparent; }
 
 .word-btn {
   --wc: var(--m-sage);
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 15px;
+  justify-content: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 7px 10px;
   border-radius: var(--radius-pill);
-  font-size: 14px;
+  font-size: 13.5px;
   letter-spacing: .02em;
   color: #4A4742;
   background: var(--surface-soft);
@@ -310,6 +328,16 @@ a { color: inherit; text-decoration: none; }
 }
 .word-btn:hover { transform: translateY(-1.5px); }
 .word-btn:active { transform: scale(.94); }
+/* 词名过长省略，不撑破格子 */
+.word-btn .lb { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 今天用过的：字重加一点，一眼找到 */
+.word-btn.hot { font-weight: 600; }
+@media (max-width: 560px) {
+  .word-row { --wr-h: 34vh; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 6px; }
+  .word-btn { padding: 7px 9px; font-size: 13px; }
+}
+/* 「管理 / 组合」跟着词表一起滚，但固定在最后，滚到底才出现 */
+.word-row .word-btn.manage { grid-column: auto; }
 
 .word-btn .dot {
   width: 7px; height: 7px;
@@ -657,6 +685,7 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- 高频词折叠 ---------- */
 #wordsHead { display: inline-flex; align-items: center; gap: 6px; }
+#btnWordsFold.on { color: var(--text); background: var(--surface-soft); }
 .fold-btn {
   width: 22px; height: 22px; border-radius: 50%;
   display: grid; place-items: center;
@@ -1444,6 +1473,47 @@ a { color: inherit; text-decoration: none; }
 .backup-btns { display: flex; gap: 2px; flex: none; }
 .backup-empty { font-size: 12.5px; color: var(--text-3); padding: 14px 2px; text-align: center; }
 
+/* ---- 找回数据弹层 ---- */
+#recoverModal .modal { max-width: 460px; }
+#recoverBody { max-height: 56vh; overflow-y: auto; margin-bottom: 4px; }
+.rc-title {
+  font-size: 12px; color: var(--text-3); letter-spacing: .04em;
+  margin: 14px 0 8px;
+}
+.rc-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.rc-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 11px; border-radius: var(--radius-pill);
+  font-size: 13px; color: var(--text-3);
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.rc-chip .dot { width: 6px; height: 6px; border-radius: 50%; flex: none; opacity: .5; }
+.rc-chip .u { font-size: 11px; opacity: .6; }
+.rc-chip.sel { color: var(--text); background: #FFFFFF; box-shadow: 0 0 0 1.5px var(--accent); }
+.rc-chip.sel .dot { opacity: 1; }
+/* 未勾选：划掉 + 变淡，一眼看出「这个不找回」 */
+.rc-chip:not(.sel) { opacity: .5; text-decoration: line-through; text-decoration-color: var(--line); }
+
+/* ---- 撤回条（数据管理里常驻，误触后不依赖 6 秒提示） ---- */
+.undo-bar {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; color: var(--text-2);
+  padding: 9px 12px; margin-bottom: 12px;
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+.undo-bar[hidden] { display: none !important; }
+.undo-bar span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.undo-bar button {
+  flex: none;
+  font-size: 12.5px; color: var(--accent-deep); font-weight: 620;
+  padding: 4px 12px; border-radius: var(--radius-pill);
+  background: #FFFFFF; box-shadow: 0 0 0 1px var(--line);
+}
+.undo-bar button:hover { box-shadow: 0 0 0 1.5px var(--accent); }
+
 .mg-row {
   display: flex;
   align-items: center;
@@ -1897,8 +1967,9 @@ a { color: inherit; text-decoration: none; }
     <!-- 视图一：记录台（默认主页） -->
     <section class="view active" id="view-record">
       <header class="view-head">
-        <h2 id="wordsHead">高频记录<button type="button" class="fold-btn" id="btnWordsFold" aria-expanded="true" title="收起高频词"><span class="fd"></span></button></h2>
+        <h2 id="wordsHead">记录台</h2>
         <div class="head-right">
+          <button class="ghost-btn" type="button" id="btnWordsFold" aria-expanded="true" title="收起高频词">收起词</button>
           <button class="ghost-btn" id="btnMovesToggle" title="显示 / 隐藏时间线里的动线">动线 · 开</button>
           <button class="ghost-btn" id="btnPlaces" title="管理识别地址">地点</button>
           <button class="ghost-btn" id="btnManage">管理</button>
@@ -2009,6 +2080,7 @@ a { color: inherit; text-decoration: none; }
         <h2>健康数据</h2>
         <div class="head-right">
           <span class="count" id="healthCount"></span>
+          <button class="ghost-btn" id="btnRecover" title="从自动备份/云端找回误删的高频词、地点、分类">找回数据</button>
         </div>
       </header>
       <div class="card">
@@ -2391,12 +2463,27 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
+<div class="modal-mask" id="recoverModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="recoverTitle">
+    <h3 id="recoverTitle">找回误删的高频词 / 地点</h3>
+    <div id="recoverBody"></div>
+    <div class="mg-foot" id="recoverFoot">
+      <button class="ghost-btn" id="btnRecoverClose">关闭</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-mask" id="backupModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="backupTitle">
-    <h3 id="backupTitle">自动备份</h3>
+    <h3 id="backupTitle">备份与撤回</h3>
+    <div class="undo-bar" id="undoBar" hidden>
+      <span id="undoBarText"></span>
+      <button type="button" id="btnUndoNow">撤回</button>
+    </div>
     <p class="modal-sub">每次打开页面会自动存一份快照，最多保留 5 份</p>
     <div id="backupList" class="backup-list"></div>
     <div class="mg-foot">
+      <button class="ghost-btn" id="btnRecover2">找回误删的词 / 地点</button>
       <button class="ghost-btn" id="btnBackupExport">导出文件</button>
       <button class="ghost-btn" id="btnBackupClose">完成</button>
     </div>
@@ -2586,7 +2673,9 @@ function normalizeState(d) {
   /* 账目：分类按上面解析出的 ledgerCats 校验（显式传表，避免 TDZ） */
   if (Array.isArray(d.ledger))  s.ledger  = d.ledger.filter(e => e && typeof e.amount === "number" && e.amount > 0 && typeof e.ts === "number").map(e => ({ id: String(e.id || uid()), type: e.type === "income" ? "income" : "expense", amount: e.amount, category: validCat(e.category, s.ledgerCats), note: String(e.note || "").slice(0, 30), ts: e.ts }));
 
-  if (!s.words.length) s.words = defaultState().words;
+  /* 只有「老数据里压根没有 words 字段」才补默认词。
+     用户自己把词删光是合法的，不能在每次刷新时又冒出来（曾被当成"误触默认"的表现）。 */
+  if (!Array.isArray(d.words) && !s.words.length) s.words = defaultState().words;
   return s;
 }
 
@@ -2665,10 +2754,26 @@ function fmtTime(ts) {
   return pad(d.getHours()) + ":" + pad(d.getMinutes());
 }
 
+/* 一天的边界：凌晨 4 点。
+   0:00–3:59 记的东西仍算「前一天」——熬夜到 1 点记的「玩手机」归到昨天的账上。 */
+const DAY_START_HOUR = 4;
+
 function dayKey(ts) {
   const d = new Date(ts);
+  /* 边界前 4 小时：退回到前一天再取日期 */
+  d.setHours(d.getHours() - DAY_START_HOUR);
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 }
+
+/* 某个 dayKey 的起止时间戳（凌晨 4 点 —— 次日凌晨 4 点） */
+function dayRange(key) {
+  const [y, m, dd] = String(key).split("-").map(Number);
+  const start = new Date(y, m - 1, dd, DAY_START_HOUR, 0, 0, 0).getTime();
+  return { start, end: start + 86400000 };
+}
+
+/* 日志页的日期表单实际时间是「那天中午 12 点」，换算成 dayKey 时用这个 */
+function keyToFormDate(key) { return key + "T12:00:00"; }
 
 function dateLabelParts(key) {
   const [y, m, dd] = key.split("-").map(Number);
@@ -2687,6 +2792,13 @@ function relDayKey(key) {
   const dk = dayBefore.getFullYear() + "-" + pad(dayBefore.getMonth() + 1) + "-" + pad(dayBefore.getDate());
   if (key === dk) return "前天";
   return "";
+}
+
+/* dayKey → "今天 10月20日" / "10月18日"（提示文案用，避免直接显示 2025-10-20） */
+function fmtDayLabel(key) {
+  const rel = relDayKey(key);
+  const [, m, dd] = String(key).split("-").map(Number);
+  return (rel && rel !== "今天" ? rel + " " : (rel ? "今天 " : "")) + m + "月" + dd + "日";
 }
 
 /* 相邻两条时长差：X秒 / X分钟 / X小时Y分 / X天Y小时 */
@@ -2740,6 +2852,71 @@ function offerUndo(snapshot, restore, what) {
   toast("已删除" + (what ? " " + what : ""), "撤销", () => {
     restore(snapshot);
   });
+}
+
+/* ============================================================
+   撤销栈（高频词 / 地点这类「一整份列表」被覆盖时用）
+   —— 误触「恢复默认」后，词表、地点、颜色会整份被替换掉，必须能一键还原。
+   —— 只放内存里，不写 localStorage：不占空间，刷新后旧状态本来也已回不去了。
+   ============================================================ */
+const undoStack = [];
+const UNDO_MAX = 6;
+
+/* 取一份「当前」快照，压栈，返回快照（取消操作时用它回滚） */
+function pushUndo(what) {
+  const snap = {
+    what: what,
+    words: state.words.map(w => Object.assign({}, w)),
+    places: state.places.map(p => Object.assign({}, p)),
+    ledgerCats: state.ledgerCats.map(c => Object.assign({}, c)),
+    at: Date.now()
+  };
+  undoStack.push(snap);
+  while (undoStack.length > UNDO_MAX) undoStack.shift();
+  syncUndoBar();
+  return snap;
+}
+
+/* 回滚到某份快照 */
+function applyUndo(snap) {
+  if (!snap) return;
+  /* 撤销前先把「当前」也压栈，等于撤回也能再撤回一次（连着点错不至于没退路） */
+  const now = {
+    what: "撤回前", at: Date.now(),
+    words: state.words.map(w => Object.assign({}, w)),
+    places: state.places.map(p => Object.assign({}, p)),
+    ledgerCats: state.ledgerCats.map(c => Object.assign({}, c))
+  };
+  state.words = snap.words.map(w => Object.assign({}, w));
+  state.places = snap.places.map(p => Object.assign({}, p));
+  state.ledgerCats = snap.ledgerCats.map(c => Object.assign({}, c));
+  /* 账目分类若指向已回滚掉的分类，归入「其他」，账目不丢 */
+  state.ledger.forEach(e => { if (!validCat(e.category)) e.category = "other"; });
+  undoStack.push(now);
+  while (undoStack.length > UNDO_MAX) undoStack.shift();
+  saveState();
+  rerenderAll();
+  syncUndoBar();
+  toast("已撤回，恢复成「" + snap.what + "」之前的样子");
+}
+
+/* 撤回最近一次 */
+function undoLast() {
+  const snap = undoStack.pop();
+  if (!snap) { toast("没有可撤回的操作"); syncUndoBar(); return; }
+  applyUndo(snap);
+}
+
+/* 数据管理弹层里的「最近操作 · 撤回」 */
+function syncUndoBar() {
+  const bar = document.getElementById("undoBar");
+  if (!bar) return;
+  const last = undoStack[undoStack.length - 1];
+  if (!last) { bar.hidden = true; return; }
+  bar.hidden = false;
+  const d = new Date(last.at);
+  document.getElementById("undoBarText").textContent =
+    "刚做过：" + last.what + "（" + pad(d.getHours()) + ":" + pad(d.getMinutes()) + "）";
 }
 
 /* ============================================================
@@ -2801,11 +2978,12 @@ function tickClock() {
   document.getElementById("topClock").textContent = pad(d.getHours()) + ":" + pad(d.getMinutes());
   document.getElementById("topDate").textContent =
     (d.getMonth() + 1) + "月" + d.getDate() + "日 周" + WEEK[d.getDay()];
-  /* 跨过零点：把「刚才」的补记状态清掉，输入框提示新的一天 */
+  /* 跨过凌晨 4 点：这才算新的一天（0–4 点记的仍归前一天） */
   if (lastDayKey !== dayKey(Date.now())) {
     lastDayKey = dayKey(Date.now());
-    backReset(); /* 跨零点：补记状态清掉，避免把今天的记录记到昨天 */
+    backReset(); /* 跨天：补记状态清掉，避免把前一天的记录拖到今天 */
     if (typeof renderTimeline === "function") renderTimeline(); /* 新的一天：主页切到空白的今天 */
+    if (typeof renderHistory === "function") renderHistory();
   }
 }
 var lastDayKey = dayKey(Date.now());
@@ -2909,15 +3087,34 @@ document.getElementById("btnComboConfirm").addEventListener("click", () => {
 
 function renderWords() {
   wordRow.innerHTML = "";
-  state.words.forEach(w => {
+  /* 排序：用它的次数多（今天 > 近 7 天 > 总共）→ 往前排；同分按原顺序。
+     词多了也不用上下翻找，常用的永远在前面。 */
+  const todayK = dayKey(Date.now());
+  const weekAgo = Date.now() - 7 * 86400000;
+  const cntToday = {}, cntWeek = {}, cntAll = {};
+  state.records.forEach(r => {
+    if (!r.wordId) return;
+    cntAll[r.wordId] = (cntAll[r.wordId] || 0) + 1;
+    if (r.ts >= weekAgo) cntWeek[r.wordId] = (cntWeek[r.wordId] || 0) + 1;
+    if (dayKey(r.ts) === todayK) cntToday[r.wordId] = (cntToday[r.wordId] || 0) + 1;
+  });
+  const ordered = state.words
+    .map((w, i) => ({ w, i, t: cntToday[w.id] || 0, k: cntWeek[w.id] || 0, a: cntAll[w.id] || 0 }))
+    .sort((A, B) => (B.t - A.t) || (B.k - A.k) || (B.a - A.a) || (A.i - B.i))
+    .map(x => x.w);
+
+  ordered.forEach(w => {
     const btn = document.createElement("button");
     btn.className = "word-btn" + (comboSel.some(x => x.id === w.id) ? " sel" : "");
     btn.style.setProperty("--wc", w.color);
     btn.dataset.id = w.id;
+    if (cntToday[w.id]) btn.classList.add("hot");
+    btn.title = w.text + (cntAll[w.id] ? "（共 " + cntAll[w.id] + " 次）" : "");
 
     const dot = document.createElement("span");
     dot.className = "dot";
     const label = document.createElement("span");
+    label.className = "lb";
     label.textContent = w.text;
 
     btn.append(dot, label);
@@ -2944,6 +3141,12 @@ function renderWords() {
   cb.title = "组合模式：连续点选多个高频词，合成一条记录";
   cb.addEventListener("click", () => setComboMode(!comboMode));
   wordRow.appendChild(cb);
+
+  /* 词不多时不该有渐隐（那是「还有更多」的暗示） */
+  wordRow.classList.remove("no-fade");
+  requestAnimationFrame(() => {
+    if (wordRow.scrollHeight <= wordRow.clientHeight + 2) wordRow.classList.add("no-fade");
+  });
 }
 
 /* 统一记录入口：生成 id + 时间戳，落库，渲染并定位到新行 */
@@ -2962,7 +3165,7 @@ function pushRecord(fields) {
   if (dayKey(ts) !== dayKey(Date.now())) {
     refreshRecordViews();
     openHistoryKey = dayKey(ts);
-    toast("已补记到 " + dayKey(ts) + " " + fmtTime(ts) + "，在历史记录里", "去看看", () => { location.hash = "#/history"; route(); });
+    toast("已补记到 " + fmtDayLabel(dayKey(ts)) + " " + fmtTime(ts) + "，在历史记录里", "去看看", () => { location.hash = "#/history"; route(); });
     return rec;
   }
   renderTimeline(rec.id);
@@ -3058,10 +3261,11 @@ function backHiddenDOM(todayK) {
   return recs + todos;
 }
 
-/* 没补记时，输入框沿用原来的「继续记录…」 */
+/* 没补记时，输入框沿用原来的「继续记录…」
+   凌晨 0:00–3:59 记的东西自动算「前一天」，这里只提醒一句，免得以为记丢了 */
 function backPlaceholder() {
   const d = new Date();
-  if (d.getHours() < 4) return "新的一天开始了，记得拨回昨天再记";
+  if (d.getHours() < DAY_START_HOUR) return "凌晨 " + DAY_START_HOUR + " 点前记的都算昨天，直接记就行";
   return "";
 }
 
@@ -3076,7 +3280,7 @@ function backSyncTrigger() {
     btn.innerHTML = '<span class="bt-dot" aria-hidden="true"></span>';
     btn.appendChild(document.createTextNode(fmtTime(backTs)));
     btn.classList.add("on");
-    let t = "补记：" + (dayKey(backTs) === dayKey(Date.now()) ? "今天" : dayKey(backTs)) + " " + fmtTime(backTs);
+    let t = "补记：" + fmtDayLabel(dayKey(backTs)) + " " + fmtTime(backTs);
     if (dayKey(backTs) !== dayKey(Date.now())) t += "（会归到这一天，主页仍显示今天）";
     btn.title = t;
   });
@@ -3157,7 +3361,7 @@ function syncBackState() {
 function backHintCheck() {
   document.querySelectorAll(".has-clock .pill-input").forEach(input => {
     if (backTs) {
-      input.placeholder = "补记 " + (dayKey(backTs) === dayKey(Date.now()) ? "" : dayKey(backTs).slice(5) + " ") + fmtTime(backTs) + " → 回车保存";
+      input.placeholder = "补记 " + (dayKey(backTs) === dayKey(Date.now()) ? "" : fmtDayLabel(dayKey(backTs)) + " ") + fmtTime(backTs) + " → 回车保存";
     } else {
       const tip = backPlaceholder();
       input.placeholder = tip || input.dataset.ph || "继续记录…";
@@ -3176,7 +3380,7 @@ function backBadge() {
   if (!backTs) { el.hidden = true; el.textContent = ""; return; }
   const same = dayKey(backTs) === dayKey(Date.now());
   el.hidden = false;
-  el.textContent = (same ? "补记 " : "补记 " + dayKey(backTs).slice(5) + " ") + fmtTime(backTs);
+  el.textContent = (same ? "补记 " : "补记 " + fmtDayLabel(dayKey(backTs)) + " ") + fmtTime(backTs);
   el.title = "之后的记录都会记到这个时间；点「现在」可切回";
 }
 
@@ -3188,7 +3392,9 @@ function applyWordsFold() {
   const btn = document.getElementById("btnWordsFold");
   if (btn) {
     btn.setAttribute("aria-expanded", folded ? "false" : "true");
+    btn.textContent = folded ? "展开词" : "收起词";
     btn.title = folded ? "展开高频词" : "收起高频词";
+    btn.classList.toggle("on", folded);
   }
   let mini = document.getElementById("foldHint");
   if (folded) {
@@ -3497,7 +3703,7 @@ function renderTimeline(flashId) {
     for (const it of plainItems) seq.push({ ts: itemTs(it), kind: "item", it });
     for (const sp of spansOfDay) {
       /* 排序锚点：期间的开始时间；跨零点延续过来的用当天 0 点 */
-      let anchor = dayKey(sp.startTs) === g.key ? sp.startTs : new Date(g.key + "T00:00:00").getTime();
+      let anchor = dayKey(sp.startTs) === g.key ? sp.startTs : dayRange(g.key).start;
       /* 嵌套期间：外层 10:40 开始，内层 10:45 开始——内层紧贴外层头部之下，
          但绝不插到外层开始之前的那条普通记录前面 */
       const outer = spansOfDay.find(o => o.id !== sp.id && o.startTs < sp.startTs && (!o.endTs || o.endTs >= sp.startTs));
@@ -4135,11 +4341,13 @@ function renderPlaces() {
     del.setAttribute("aria-label", "删除地址 " + pl.name);
     del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
     del.addEventListener("click", () => {
+      pushUndo("删除地点「" + pl.name + "」");
       state.places = state.places.filter(x => x.id !== pl.id);
       saveState();
       renderPlaces();
       renderTimeline();
       renderHistory();
+      toast("已删除地址「" + pl.name + "」", "撤销", () => undoLast());
     });
 
     row.append(pin, name, c, del);
@@ -4168,13 +4376,18 @@ plForm.addEventListener("submit", (e) => {
   toast("已添加地址「" + p.name + "」");
 });
 
-document.getElementById("btnPlDefault").addEventListener("click", () => {
+document.getElementById("btnPlDefault").addEventListener("click", (e) => {
+  if (e) e.preventDefault();
+  if (e) e.stopPropagation();
+  const before = state.places.map(p => p.name).join("、");
+  pushUndo("恢复默认地址");
   state.places = defaultState().places;
   saveState();
   renderPlaces();
   renderTimeline();
   renderHistory();
-  toast("已恢复默认地址");
+  toast(before ? "已恢复默认地址（原有的：" + before.slice(0, 18) + (before.length > 18 ? "…" : "") + "）" : "已恢复默认地址",
+        "撤回", () => undoLast());
 });
 document.getElementById("btnPlClose").addEventListener("click", closePlaces);
 document.getElementById("btnPlaces").addEventListener("click", openPlaces);
@@ -5317,6 +5530,7 @@ catForm.addEventListener("submit", (e) => {
 document.getElementById("btnCatClose").addEventListener("click", closeCatManage);
 catModal.addEventListener("click", (e) => { if (e.target === catModal) closeCatManage(); });
 document.getElementById("btnCatDefault").addEventListener("click", () => {
+  pushUndo("恢复默认分类");
   state.ledgerCats = LEDGER_CATS.map(c => ({ key: c.key, name: c.name, color: c.color }));
   /* 恢复默认后，老分类下的账目若指向已不存在的 key，归入"其他" */
   state.ledger.forEach(e => { if (!validCat(e.category)) e.category = "other"; });
@@ -5324,7 +5538,7 @@ document.getElementById("btnCatDefault").addEventListener("click", () => {
   renderCatManage();
   renderCats();
   renderLedger();
-  toast("已恢复默认分类");
+  toast("已恢复默认分类", "撤销", () => undoLast());
 });
 
 /* ============================================================
@@ -5358,6 +5572,7 @@ function lastNDays(n) {
 }
 
 function renderHealth() {
+  /* 凌晨 4 点前打开，默认记到「昨天」那一天（和记录台口径一致） */
   if (!hDate.value) hDate.value = dayKey(Date.now());
 
   const list = document.getElementById("healthList");
@@ -5628,10 +5843,12 @@ function renderManage() {
       del.setAttribute("aria-label", "删除 " + w.text);
       del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
       del.addEventListener("click", () => {
+        pushUndo("删除高频词「" + w.text + "」");
         state.words = state.words.filter(x => x.id !== w.id);
         saveState();
         renderWords();
         renderManage();
+        toast("已删除「" + w.text + "」", "撤销", () => undoLast());
       });
 
       row.append(dot, name, c, del);
@@ -5672,12 +5889,17 @@ mgForm.addEventListener("submit", (e) => {
   renderManage();
 });
 
-btnReset.addEventListener("click", () => {
+/* 恢复默认：整份词表会被替换，必须先留一份快照，否则自定义词直接没了 */
+btnReset.addEventListener("click", (e) => {
+  if (e) e.preventDefault();
+  if (e) e.stopPropagation();
+  const before = state.words.length;
+  pushUndo("恢复默认高频词");
   state.words = defaultState().words;
   saveState();
   renderWords();
   renderManage();
-  toast("已恢复默认高频词");
+  toast("已恢复默认高频词（原有 " + before + " 个）", "撤回", () => undoLast());
 });
 
 btnCloseMg.addEventListener("click", closeManage);
@@ -5693,6 +5915,7 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !compPasteModal.hidden) compPasteModal.hidden = true;
   if (e.key === "Escape" && !document.getElementById("cloudModal").hidden) closeCloud();
   if (e.key === "Escape" && !document.getElementById("backupModal").hidden) closeBackups();
+  if (e.key === "Escape" && !document.getElementById("recoverModal").hidden) closeRecover();
   if (e.key === "Escape" && !document.getElementById("confirmModal").hidden) settleConfirm(false);
   if (e.key === "Escape" && sidebar.classList.contains("open")) closeDrawer();
 });
@@ -5784,6 +6007,7 @@ function deleteBackup(index) {
 function openBackups() {
   document.getElementById("backupModal").hidden = false;
   renderBackupList();
+  syncUndoBar();
 }
 function closeBackups() {
   document.getElementById("backupModal").hidden = true;
@@ -6318,8 +6542,247 @@ document.getElementById("cloudModal").addEventListener("click", (e) => {
   if (e.target === document.getElementById("cloudModal")) closeCloud();
 });
 
+/* ============================================================
+   找回数据：把「以前出现过的」高频词 / 地点 / 分类重新拣出来
+   —— 场景：不小心点了「恢复默认」，自定义词与地点被整份替换。
+   —— 来源：本机自动备份（5 份快照）+ 本机 pre-join 快照 + 云端当前数据；
+      记录里记录的 wordText / placeId 也算线索（词删了，记录还在）。
+   —— 原则：只增不删。合并时保留现有条目，只把缺的补回来。
+   ============================================================ */
+let recoverScanned = null; /* 最近一次扫描结果 */
+
+function readPreJoin() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY + ".pre-join");
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+
+/* 汇总所有能找到的 words / places 线索 */
+async function scanRecoverable(cloudData) {
+  const srcs = [];
+  const bak = readBackups();
+  bak.forEach(it => {
+    try { srcs.push({ label: "备份 " + fmtShortAt(it.at), at: it.at, data: JSON.parse(it.json) }); } catch (_) {}
+  });
+  const pj = readPreJoin();
+  if (pj && pj.words) srcs.push({ label: "换设备前的数据", at: 0, data: pj });
+  if (cloudData && (cloudData.words || cloudData.places)) srcs.push({ label: "云端数据", at: 0, data: cloudData });
+  /* 当前数据也算一个来源（优先级最高） */
+  srcs.push({ label: "当前", at: Date.now(), data: state });
+
+  const words = new Map();  /* text -> {text, color, used} */
+  const places = new Map(); /* name -> {name, used} */
+  const cats = new Map();   /* name -> {name, color} */
+
+  srcs.forEach(src => {
+    const d = src.data || {};
+    (Array.isArray(d.words) ? d.words : []).forEach(w => {
+      if (!w || typeof w.text !== "string" || !w.text.trim()) return;
+      const t = w.text.trim();
+      const cur = words.get(t);
+      if (!cur) words.set(t, { text: t, color: validColor(w.color), src: src.label });
+    });
+    (Array.isArray(d.places) ? d.places : []).forEach(p => {
+      if (!p || typeof p.name !== "string" || !p.name.trim()) return;
+      const n = p.name.trim();
+      if (!places.has(n)) places.set(n, { name: n, src: src.label });
+    });
+    (Array.isArray(d.ledgerCats) ? d.ledgerCats : []).forEach(c => {
+      if (!c || typeof c.name !== "string" || !c.name.trim()) return;
+      const n = c.name.trim();
+      if (!cats.has(n)) cats.set(n, { name: n, color: validColor(c.color), src: src.label });
+    });
+  });
+
+  /* 记录里的词也补回来（词表被清空但记录还在的情况） */
+  const wordUse = {};
+  (state.records || []).forEach(r => { if (r.wordText) wordUse[r.wordText] = (wordUse[r.wordText] || 0) + 1; });
+  Object.keys(wordUse).forEach(t => {
+    if (!words.has(t)) words.set(t, { text: t, color: validColor(null), src: "历史记录" });
+  });
+
+  /* 标出「现在没有」的 */
+  const haveW = new Set(state.words.map(w => w.text));
+  const haveP = new Set(state.places.map(p => p.name));
+  const haveC = new Set(state.ledgerCats.map(c => c.name));
+  const lostWords = [...words.values()].filter(w => !haveW.has(w.text))
+    .map(w => Object.assign(w, { used: wordUse[w.text] || state.records.filter(r => r.wordText === w.text).length }));
+  const lostPlaces = [...places.values()].filter(p => !haveP.has(p.name))
+    .map(p => Object.assign(p, { used: state.records.filter(r => r.placeId && recPlace(r) && recPlace(r).name === p.name).length }));
+  const lostCats = [...cats.values()].filter(c => !haveC.has(c.name));
+
+  return { words: lostWords, places: lostPlaces, cats: lostCats, checked: srcs.length };
+}
+
+function fmtShortAt(at) {
+  if (!at) return "";
+  const d = new Date(at);
+  return (d.getMonth() + 1) + "/" + d.getDate() + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+
+/* 合并回 state（只增不删） */
+function applyRecover(picked) {
+  let nw = 0, np = 0, nc = 0;
+  pushUndo("找回数据");
+  (picked.words || []).forEach(w => {
+    if (state.words.some(x => x.text === w.text)) return;
+    state.words.push({ id: uid(), text: w.text, color: validColor(w.color) });
+    nw++;
+  });
+  (picked.places || []).forEach(p => {
+    if (state.places.some(x => x.name === p.name)) return;
+    state.places.push({ id: uid(), name: p.name });
+    np++;
+  });
+  (picked.cats || []).forEach(c => {
+    if (state.ledgerCats.some(x => x.name === c.name)) return;
+    state.ledgerCats.push({ key: "c" + uid(), name: c.name, color: validColor(c.color) });
+    nc++;
+  });
+  saveState();
+  rerenderAll();
+  if (typeof renderRecoverList === "function") renderRecoverList();
+  const parts = [];
+  if (nw) parts.push(nw + " 个高频词");
+  if (np) parts.push(np + " 个地点");
+  if (nc) parts.push(nc + " 个分类");
+  toast(parts.length ? "已找回 " + parts.join("、") : "没有新的可找回条目", parts.length ? "撤回" : null, parts.length ? () => undoLast() : null);
+}
+
+/* ---------- 「找回数据」弹层渲染 ---------- */
+const recoverModal = document.getElementById("recoverModal");
+const recoverBody = document.getElementById("recoverBody");
+
+function openRecover() {
+  recoverModal.hidden = false;
+  recoverBody.innerHTML = '<p class="backup-empty">正在翻本机的自动备份和云端数据…</p>';
+  recoverScanned = null;
+  (async () => {
+    let cloudData = null;
+    if (state.sync && state.sync.enabled && state.sync.binId) {
+      try { const c = await cloudGetBin(state.sync.binId); cloudData = (c && c.data) || null; } catch (_) {}
+    }
+    try {
+      recoverScanned = await scanRecoverable(cloudData);
+    } catch (e) {
+      recoverBody.innerHTML = '<p class="backup-empty">扫描出错：' + (e && e.message ? e.message : "未知错误") + "</p>";
+      return;
+    }
+    renderRecoverList();
+  })();
+}
+function closeRecover() { recoverModal.hidden = true; }
+
+function renderRecoverList() {
+  if (!recoverScanned) return;
+  recoverBody.innerHTML = "";
+  const r = recoverScanned;
+  const total = r.words.length + r.places.length + r.cats.length;
+  if (!total) {
+    const p = document.createElement("p");
+    p.className = "backup-empty";
+    p.textContent = "翻遍了本机备份、换设备前的数据和云端，都没有找到现在缺失的词或地点。";
+    recoverBody.appendChild(p);
+    return;
+  }
+  const intro = document.createElement("p");
+  intro.className = "modal-sub";
+  intro.style.margin = "0 0 12px";
+  intro.textContent = "以下是翻 " + r.checked + " 份历史数据找到、但现在词表里没有的。勾选后点「找回」，只会加回来，不会删任何东西。";
+  recoverBody.appendChild(intro);
+
+  const sect = (title, list, key, render) => {
+    if (!list.length) return;
+    const h = document.createElement("p");
+    h.className = "rc-title";
+    h.textContent = title + "（" + list.length + "）";
+    recoverBody.appendChild(h);
+    const box = document.createElement("div");
+    box.className = "rc-chips";
+    list.forEach((item, i) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "rc-chip sel";
+      chip.dataset.kind = key;
+      chip.dataset.i = i;
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      dot.style.background = validColor(item.color);
+      chip.appendChild(dot);
+      chip.appendChild(document.createTextNode(item.name || item.text));
+      if (item.used) {
+        const u = document.createElement("span");
+        u.className = "u";
+        u.textContent = item.used + " 条";
+        chip.appendChild(u);
+      }
+      chip.addEventListener("click", () => { chip.classList.toggle("sel"); if (typeof syncAllBtnRef.fn === "function") syncAllBtnRef.fn(); });
+      box.appendChild(chip);
+    });
+    recoverBody.appendChild(box);
+  };
+  sect("高频词", r.words, "w");
+  sect("地点", r.places, "p");
+  sect("记账分类", r.cats, "c");
+
+  const foot = document.createElement("div");
+  foot.className = "mg-foot";
+  /* 默认全部勾上（绝大多数情况就是全都要找回），按钮随状态变文案 */
+  const allBtn = document.createElement("button");
+  allBtn.className = "ghost-btn";
+  allBtn.type = "button";
+  const syncAllBtn = () => {
+    const chips = recoverBody.querySelectorAll(".rc-chip");
+    const allSel = chips.length && [...chips].every(c => c.classList.contains("sel"));
+    allBtn.textContent = allSel ? "全不选" : "全选";
+    const n = recoverBody.querySelectorAll(".rc-chip.sel").length;
+    okBtn.textContent = n ? "找回选中的（" + n + "）" : "找回选中的";
+  };
+  allBtn.addEventListener("click", () => {
+    const chips = recoverBody.querySelectorAll(".rc-chip");
+    const allSel = chips.length && [...chips].every(c => c.classList.contains("sel"));
+    chips.forEach(c => c.classList.toggle("sel", !allSel));
+    syncAllBtn();
+  });
+  const okBtn = document.createElement("button");
+  okBtn.className = "primary-btn";
+  okBtn.type = "button";
+  okBtn.textContent = "找回选中的";
+  okBtn.addEventListener("click", () => {
+    const picked = { words: [], places: [], cats: [] };
+    recoverBody.querySelectorAll(".rc-chip.sel").forEach(chip => {
+      const i = Number(chip.dataset.i);
+      if (chip.dataset.kind === "w") picked.words.push(r.words[i]);
+      if (chip.dataset.kind === "p") picked.places.push(r.places[i]);
+      if (chip.dataset.kind === "c") picked.cats.push(r.cats[i]);
+    });
+    if (!picked.words.length && !picked.places.length && !picked.cats.length) { toast("没有勾选任何条目"); return; }
+    applyRecover(picked);
+    /* 找回后重新扫一遍：剩下的还能继续拣 */
+    closeRecover();
+    setTimeout(openRecover, 320);
+  });
+  /* 底部按钮统一放在弹层私有 footer 里，和「关闭」同一行 */
+  const rfoot = document.getElementById("recoverFoot");
+  rfoot.querySelectorAll(".rc-act").forEach(n => n.remove());
+  allBtn.classList.add("rc-act");
+  okBtn.classList.add("rc-act");
+  rfoot.insertBefore(allBtn, rfoot.firstChild);
+  rfoot.insertBefore(okBtn, rfoot.firstChild.nextSibling);
+  syncAllBtnRef.fn = syncAllBtn;
+  syncAllBtn();
+}
+const syncAllBtnRef = { fn: null };
+
+document.getElementById("btnRecover").addEventListener("click", openRecover);
+document.getElementById("btnRecoverClose").addEventListener("click", closeRecover);
+recoverModal.addEventListener("click", (e) => { if (e.target === recoverModal) closeRecover(); });
+
 /* 自动备份事件 */
 document.getElementById("btnBackups").addEventListener("click", openBackups);
+document.getElementById("btnUndoNow").addEventListener("click", () => undoLast());
+document.getElementById("btnRecover2").addEventListener("click", () => { closeBackups(); openRecover(); });
 document.getElementById("btnBackupClose").addEventListener("click", closeBackups);
 document.getElementById("btnBackupExport").addEventListener("click", () => {
   closeBackups();
