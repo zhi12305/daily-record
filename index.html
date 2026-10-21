@@ -681,6 +681,7 @@ a { color: inherit; text-decoration: none; }
 .span-head .span-ops { margin-left: auto; display: flex; gap: 4px; }
 .span-head .tl-edit, .span-head .tl-del { width: 24px; height: 24px; }
 .span-tail .d { font-weight: 620; color: var(--text-1); }
+.span-tail .cnt { color: var(--text-3); font-size: 11.5px; }
 .span-head.live { box-shadow: inset 0 0 0 1px rgba(143, 165, 136, .5); }
 
 /* ---------- 高频词折叠 ---------- */
@@ -874,6 +875,94 @@ a { color: inherit; text-decoration: none; }
 .pl-pin { width: 14px; height: 14px; flex: none; color: var(--accent-deep); display: grid; place-items: center; }
 .pl-pin svg { width: 14px; height: 14px; }
 
+/* ---------- 地点库：横向翻页卡片 ---------- */
+.pl-viewport {
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;   /* 横滑到头不带着整页跑 */
+  scrollbar-width: none;
+  margin: 2px -4px 10px;
+  padding: 2px 4px;
+}
+.pl-viewport::-webkit-scrollbar { display: none; }
+.pl-page {
+  flex: 0 0 100%;
+  width: 100%;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  padding: 0 2px;
+  box-sizing: border-box;
+}
+.pl-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+}
+.pl-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 4px;
+  border-bottom: 1px solid var(--line-soft);
+  min-height: 44px;              /* 手机上好点，手指够得着 */
+  box-sizing: border-box;
+}
+.pl-item:last-child { border-bottom: none; }
+.pl-item .name {
+  flex: 1; min-width: 0; font-size: 14.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pl-item .cnt { font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; flex: none; }
+.pl-item .mg-del { width: 34px; height: 34px; }
+.pl-item .mg-del svg { width: 14px; height: 14px; }
+
+/* 弹层自身不滚：只有地址区在内部滚，标题 / 输入框 / 按钮永远在视野里 */
+#placeModal .modal {
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  max-height: min(78vh, 620px);
+}
+#placeModal #plList { min-height: 120px; overflow-y: auto; }
+#placeModal .mg-add, #placeModal .mg-foot, #placeModal .pl-track,
+#placeModal .modal-sub, #placeModal h3 { flex: none; }
+
+.pl-track {
+  display: flex; align-items: center; justify-content: center;
+  gap: 10px; margin: 0 0 4px;
+}
+.pl-track[hidden] { display: none !important; }
+.pl-nav {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: grid; place-items: center;
+  color: var(--text-2); background: var(--surface-soft);
+  transition: background var(--dur) var(--ease), opacity var(--dur) var(--ease);
+}
+.pl-nav svg { width: 16px; height: 16px; }
+.pl-nav:disabled { opacity: .28; }
+.pl-nav:not(:disabled):hover { background: var(--surface-softer); color: var(--text); }
+.pl-dots { display: flex; align-items: center; gap: 7px; }
+.pl-dot {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: transparent;
+  position: relative;
+}
+.pl-dot::after {
+  content: ""; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--line);
+  transition: background var(--dur) var(--ease), transform var(--dur) var(--ease);
+}
+.pl-dot.on::after { background: var(--accent); transform: scale(1.35); }
+/* 手机上高度收紧：卡片在弹层内部滚动，标题和输入框始终露出来 */
+@media (max-width: 560px) {
+  .pl-grid { grid-template-columns: 1fr; }
+  .pl-nav { width: 40px; height: 40px; }
+}
+
 /* ---------- V3.0 历史记录视图 ---------- */
 .his-day + .his-day { margin-top: 8px; }
 .his-head {
@@ -945,6 +1034,61 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: .02em;
 }
 .his-row .his-diff + .place-tag { margin-left: 0; }
+/* ============================================================
+   触控友好：手机上所有图标按钮统一放大到 ≥40px，
+   手指按得准（之前 20–26px，删记录时经常点错）
+   ============================================================ */
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  /* 时间线 / 历史行里的编辑、删除、地点按钮 */
+  .tl-edit, .tl-del, .tl-place,
+  .his-row .tl-edit, .his-row .tl-del {
+    width: 40px !important; height: 40px !important;
+    flex: none;
+  }
+  .tl-edit svg, .tl-del svg, .tl-place svg,
+  .his-row .tl-edit svg, .his-row .tl-del svg { width: 15px !important; height: 15px !important; }
+  /* 常显不隐藏：手机上没 hover，藏起来等于找不到 */
+  .tl-edit, .tl-place { opacity: .7 !important; }
+  .his-ops { gap: 2px; }
+  /* 期间头部的操作按钮 */
+  .span-head .tl-edit, .span-head .tl-del { width: 38px !important; height: 38px !important; }
+  .span-head { padding: 4px 6px 4px 10px; }
+  /* 管理弹层里的删除 */
+  .mg-del, .pl-item .mg-del { width: 40px !important; height: 40px !important; }
+  .mg-del svg, .pl-item .mg-del svg { width: 15px !important; height: 15px !important; }
+  /* 顶部小圆按钮 */
+  .fold-btn { width: 34px; height: 34px; }
+  .side-toggle { width: 40px; height: 40px; }
+  /* 历史每日的展开行 */
+  .his-head { padding-top: 14px; padding-bottom: 14px; }
+  /* 待办勾选框 */
+  .ti-mark { width: 26px; height: 26px; }
+  /* 顶部按钮排：矮一点的字号给足高度 */
+  .view-head .ghost-btn { min-height: 36px; padding: 0 14px; }
+
+  /* ---- 手机上记录行重排：正文占满第一行，图标按钮收进第二行右侧 ----
+     按钮放大到 40px 后，如果还硬挤在同一行，文字会被压成一条缝，
+     所以干脆让正文先占满，图标整齐地排在下一行右端。 */
+  /* 一行宽度 ≈ 314px：正文 + 标签 + 三个按钮要一起塞下，所以按钮 40/40/34 并给正文让位。
+     用 nowrap + 正文省略号：一行一定放得下，正文过长就省略（点编辑能看全）。 */
+  .tl-item { gap: 0 2px !important; padding: 7px 0 7px 3px !important; flex-wrap: nowrap !important; }
+  .tl-item .tl-time { min-width: 32px; font-size: 12px; }
+  .tl-item .dot { margin-left: 0; }
+  .tl-item .tl-word { flex: 1 1 40px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 时长标签在窄屏下也让位：能省则省 */
+  .tl-item .tl-diff { flex: none; }
+  .tl-item .tl-del { width: 32px !important; height: 32px !important; }
+  /* 时长 / 地点标签跟在正文后面，放不下时自然折到下一行 */
+  .tl-item .tl-diff, .tl-item .place-tag, .tl-item .ti-pill { order: 5; }
+  /* 三个图标按钮固定在行尾：距上一个内容自动撑开 */
+  .tl-item .tl-place, .tl-item .tl-edit, .tl-item .tl-del { order: 8; margin: 0 !important; }
+  .tl-item .tl-place { margin-left: auto !important; }
+  .tl-item .tl-place + .tl-edit { margin-left: 0 !important; }
+  /* 没有地点按钮时，编辑按钮顶上靠右的位置 */
+  .tl-item .tl-edit { margin-left: auto; }
+  .tl-item .tl-place ~ .tl-edit { margin-left: 0; }
+}
+
 /* 手机窄屏：时长 / 地点 / 编辑 / 删除 都留在正文同一行，只让正文自身折行 */
 .his-row .tl-edit { margin-left: auto; }
 .his-ops { display: inline-flex; align-items: center; gap: 2px; flex: none; margin-left: auto; }
@@ -2267,7 +2411,8 @@ a { color: inherit; text-decoration: none; }
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="plTitle">
     <h3 id="plTitle">识别地址</h3>
     <p class="modal-sub">记录文字里出现这些名称，会自动识别地点并生成动线</p>
-    <div id="plList"></div>
+    <div class="pl-viewport" id="plList"></div>
+    <div class="pl-track" id="plTrack" hidden></div>
     <form class="mg-add" id="plForm" autocomplete="off">
       <input id="plInput" type="text" placeholder="添加地址名称，如「健身房」" maxlength="12">
       <button type="submit" class="add-btn" aria-label="添加地址">+</button>
@@ -3527,8 +3672,8 @@ function buildSpanHead(sp) {
   return head;
 }
 
-/* 期间区块尾部：总时长 / 进行中 */
-function buildSpanTail(sp) {
+/* 期间区块尾部：总时长 + 期间内几条记录 / 进行中 */
+function buildSpanTail(sp, count) {
   const tail = document.createElement("div");
   tail.className = "span-tail";
   if (sp.endTs) {
@@ -3536,8 +3681,14 @@ function buildSpanTail(sp) {
     d.className = "d";
     d.textContent = "共 " + fmtSpanDur(sp.endTs - sp.startTs);
     tail.appendChild(d);
+    if (count) {
+      const c = document.createElement("span");
+      c.className = "cnt";
+      c.textContent = "里面 " + count + " 条";
+      tail.appendChild(c);
+    }
   } else {
-    tail.textContent = "进行中…（期间内记的内容都会归到这里）";
+    tail.textContent = "进行中…（期间内记的内容都会归到这里" + (count ? "，已 " + count + " 条" : "") + "）";
   }
   return tail;
 }
@@ -3651,13 +3802,20 @@ function renderTimeline(flashId) {
     /* 先把每个期间渲染成独立区块（时间段内的事都归进去），再按时间顺序拼回时间线 */
     const blockOf = {};   /* spanId -> { el, ts } */
     const plainItems = []; /* 不在任何期间里的事项：记录 + 待办 */
+    /* 某条记录属于哪个期间：
+       1) 显式挂在期间上（记录时期间进行中，或事后手动改过）—— 优先；
+       2) 没挂期间，但时间正好落在这个期间的开→闭区间里（范围含端点）—— 也算。
+       这样「期间开始到结束之间记的普通记录」一定会被包进区块里，不会漏到外面。 */
+    const spanAt = (ts) => {
+      const hits = spansOfDay.filter(sp => ts >= sp.startTs && (sp.endTs ? ts <= sp.endTs : true));
+      if (!hits.length) return null;
+      /* 嵌套时取最内层：开始时间最晚的那个 */
+      return hits.sort((a, b) => b.startTs - a.startTs)[0];
+    };
     const recSpanOf = (r) => {
-      if (!r.spanId) return null;
-      const sp = state.spans.find(x => x.id === r.spanId);
-      if (!sp) return null;
-      /* 归属的期间必须是本页可见的（同一天 / 跨零点延续到今天） */
-      if (!spansOfDay.some(x => x.id === sp.id)) return null;
-      return sp;
+      const sp = r.spanId ? state.spans.find(x => x.id === r.spanId) : null;
+      if (sp && spansOfDay.some(x => x.id === sp.id)) return sp;
+      return spanAt(r.ts);
     };
 
     /* 区块构建：期间内的事项按时间正序装进去；一条都没有也要显示（空期间） */
@@ -3668,7 +3826,10 @@ function renderTimeline(flashId) {
       blockOf[sp.id] = blk;
       /* 期间内的事项按时间正序装进来 */
       const inner = g.items.filter(it => {
+        if (it.kind === "_anchor") return false;
         if (it.kind === "rec") { const spx = recSpanOf(it.data); return !!spx && spx.id === sp.id; }
+        if (it.kind !== "todo") return false;
+        /* 待办：落在区间内（含端点）就归进来 */
         const t = itemTs(it);
         return t >= sp.startTs && (!sp.endTs || t <= sp.endTs);
       });
@@ -3682,7 +3843,7 @@ function renderTimeline(flashId) {
           blk.appendChild(buildTodoRow(it.data, flashId));
         }
       }
-      blk.appendChild(buildSpanTail(sp));
+      blk.appendChild(buildSpanTail(sp, inner.filter(x => x.kind === "rec").length));
     }
 
     /* 不在期间里的事项 */
@@ -4306,54 +4467,146 @@ function placeUseCount(pid) {
 }
 
 function openPlaces() {
+  plPage = 0;
   renderPlaces();
   placeModal.hidden = false;
   plInput.focus();
 }
 function closePlaces() { placeModal.hidden = true; }
 
-function renderPlaces() {
+/* 地点库：卡片横向翻页（左右滑 / 点箭头），不再上下拉长列表。
+   每张卡片里是若干地址，卡内可纵向滚动（地址再多也只在这张卡里滑）。 */
+const PL_PER_PAGE = 9; /* 每卡 9 个，3×3，手机上一屏放得下 */
+
+function renderPlaces(keepPage) {
+  const pages = Math.max(1, Math.ceil(state.places.length / PL_PER_PAGE));
+  plPage = keepPage ? Math.min(plPage, pages - 1) : Math.min(plPage, pages - 1);
+  if (!isFinite(plPage) || plPage < 0) plPage = 0;
+
   plList.innerHTML = "";
   if (!state.places.length) {
     const p = document.createElement("p");
-    p.style.cssText = "font-size:13px;color:var(--text-3);padding:6px 4px 2px";
+    p.style.cssText = "font-size:13px;color:var(--text-3);padding:6px 4px 2px;text-align:center;line-height:1.7";
     p.textContent = "还没有地址。添加一个后，记录里出现它就会自动生成动线";
     plList.appendChild(p);
+    renderPlTrack([]);
+    return;
   }
-  state.places.forEach(pl => {
-    const row = document.createElement("div");
-    row.className = "mg-row";
 
-    const pin = document.createElement("span");
-    pin.className = "pl-pin";
-    pin.innerHTML = pinSvg(2);
+  for (let i = 0; i < pages; i++) {
+    const card = document.createElement("div");
+    card.className = "pl-page";
+    const grid = document.createElement("div");
+    grid.className = "pl-grid";
+    state.places.slice(i * PL_PER_PAGE, (i + 1) * PL_PER_PAGE).forEach(pl => {
+      const item = document.createElement("div");
+      item.className = "pl-item";
 
-    const name = document.createElement("span");
-    name.className = "name";
-    name.textContent = pl.name;
+      const pin = document.createElement("span");
+      pin.className = "pl-pin";
+      pin.innerHTML = pinSvg(2);
 
-    const c = document.createElement("span");
-    c.className = "cnt";
-    c.textContent = placeUseCount(pl.id) + " 条";
+      const name = document.createElement("span");
+      name.className = "name";
+      name.textContent = pl.name;
+      name.title = pl.name;
 
-    const del = document.createElement("button");
-    del.className = "mg-del";
-    del.setAttribute("aria-label", "删除地址 " + pl.name);
-    del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-    del.addEventListener("click", () => {
-      pushUndo("删除地点「" + pl.name + "」");
-      state.places = state.places.filter(x => x.id !== pl.id);
-      saveState();
-      renderPlaces();
-      renderTimeline();
-      renderHistory();
-      toast("已删除地址「" + pl.name + "」", "撤销", () => undoLast());
+      const c = document.createElement("span");
+      c.className = "cnt";
+      c.textContent = placeUseCount(pl.id) + " 条";
+
+      const del = document.createElement("button");
+      del.className = "mg-del";
+      del.setAttribute("aria-label", "删除地址 " + pl.name);
+      del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+      del.addEventListener("click", () => {
+        pushUndo("删除地点「" + pl.name + "」");
+        state.places = state.places.filter(x => x.id !== pl.id);
+        saveState();
+        renderPlaces();
+        renderTimeline();
+        renderHistory();
+        toast("已删除地址「" + pl.name + "」", "撤销", () => undoLast());
+      });
+
+      item.append(pin, name, c, del);
+      grid.appendChild(item);
     });
-
-    row.append(pin, name, c, del);
-    plList.appendChild(row);
-  });
+    card.appendChild(grid);
+    plList.appendChild(card);
+  }
+  renderPlTrack(pages);
+  /* 卡内 9 个刚好排满，不需要滚动；再多（改常量后可超）则卡内滚动 */
+  requestAnimationFrame(() => scrollToPage(plPage, false));
 }
+
+let plPage = 0;
+
+/* 底部翻页指示：‹ 1/3 › */
+function renderPlTrack(pages) {
+  const track = document.getElementById("plTrack");
+  if (!track) return;
+  if (pages <= 1) { track.hidden = true; track.innerHTML = ""; return; }
+  track.hidden = false;
+  track.innerHTML = "";
+  const prev = document.createElement("button");
+  prev.type = "button";
+  prev.className = "pl-nav";
+  prev.setAttribute("aria-label", "上一页地址");
+  prev.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m14 6-6 6 6 6"/></svg>';
+  prev.disabled = plPage <= 0;
+  prev.addEventListener("click", () => scrollToPage(plPage - 1, true));
+
+  const dots = document.createElement("div");
+  dots.className = "pl-dots";
+  for (let i = 0; i < pages; i++) {
+    const d = document.createElement("button");
+    d.type = "button";
+    d.className = "pl-dot" + (i === plPage ? " on" : "");
+    d.setAttribute("aria-label", "第 " + (i + 1) + " 页地址");
+    d.addEventListener("click", () => scrollToPage(i, true));
+    dots.appendChild(d);
+  }
+
+  const next = document.createElement("button");
+  next.type = "button";
+  next.className = "pl-nav";
+  next.setAttribute("aria-label", "下一页地址");
+  next.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m10 6 6 6-6 6"/></svg>';
+  next.disabled = plPage >= pages - 1;
+  next.addEventListener("click", () => scrollToPage(plPage + 1, true));
+
+  track.append(prev, dots, next);
+}
+
+/* 滑到第 n 页（smooth=true 时带动画）；同时更新页码圆点 */
+function scrollToPage(n, smooth) {
+  const pages = plList.querySelectorAll(".pl-page");
+  if (!pages.length) return;
+  n = Math.max(0, Math.min(n, pages.length - 1));
+  plPage = n;
+  plList.scrollTo({ left: n * plList.clientWidth, behavior: smooth ? "smooth" : "auto" });
+  const dots = document.querySelectorAll("#plTrack .pl-dot");
+  dots.forEach((d, i) => d.classList.toggle("on", i === n));
+  const navs = document.querySelectorAll("#plTrack .pl-nav");
+  if (navs.length === 2) { navs[0].disabled = n <= 0; navs[1].disabled = n >= pages.length - 1; }
+}
+
+/* 手指横滑时同步页码（滚动停下再更新，避免抖） */
+let plScrollTimer = null;
+plList.addEventListener("scroll", () => {
+  clearTimeout(plScrollTimer);
+  plScrollTimer = setTimeout(() => {
+    const w = plList.clientWidth || 1;
+    const n = Math.round(plList.scrollLeft / w);
+    if (n === plPage) return;
+    plPage = n;
+    document.querySelectorAll("#plTrack .pl-dot").forEach((d, i) => d.classList.toggle("on", i === n));
+    const navs = document.querySelectorAll("#plTrack .pl-nav");
+    const total = plList.querySelectorAll(".pl-page").length;
+    if (navs.length === 2) { navs[0].disabled = n <= 0; navs[1].disabled = n >= total - 1; }
+  }, 120);
+}, { passive: true });
 
 function addPlace(name) {
   const n = String(name || "").trim().slice(0, 12);
