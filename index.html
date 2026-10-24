@@ -885,17 +885,45 @@ a { color: inherit; text-decoration: none; }
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;   /* 横滑到头不带着整页跑 */
   scrollbar-width: none;
-  margin: 2px -4px 10px;
-  padding: 2px 4px;
+  margin: 2px 0 10px;
+  padding: 0;                     /* ★ v17：不留内边距，卡片 100% 正好一屏，翻页不错位 */
 }
 .pl-viewport::-webkit-scrollbar { display: none; }
+/* ★ v17：保证一定是「左右翻页」
+   - touch-action: pan-x 让手指只能横向滑，纵向的手势交给外层（不会在卡里上下滚）
+   - 桌面滚轮竖向滚动时，转换成横向翻页（由 JS 代理）
+   - 每张卡 flex:0 0 100%，保证一屏一张 */
+.pl-viewport {
+  touch-action: pan-x pinch-zoom;
+  scroll-snap-type: x mandatory;
+  overflow-y: hidden !important;
+}
+/* ★ v17：滚动容器有 4px 内边距，若卡片用 100% 会窄 4px，导致吸附后逐页错位；
+   这里用「视口宽度 - 内边距」精确卡住，保证一屏一张、翻页严丝合缝。 */
+.pl-page {
+  flex: 0 0 100% !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box;
+}
+.pl-viewport { scroll-padding-left: 0; }
+/* 卡内地址多了以后，卡内单独可滚（不会撑破弹层） */
+/* 卡片高度固定为「视口高度」，超出部分在卡内滚动：保证一屏一页，不会把弹层撑成竖向长列表 */
+.pl-viewport { height: min(44vh, 340px); }
+.pl-grid { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; align-content: start; }
+.pl-page .pl-grid::-webkit-scrollbar { width: 4px; }
+.pl-page .pl-grid::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
 .pl-page {
   flex: 0 0 100%;
   width: 100%;
+  min-width: 100%;            /* ★ v17：一定占满一屏，避免 padding 把宽度压掉 4px */
   scroll-snap-align: center;
   scroll-snap-stop: always;
-  padding: 0 2px;
+  padding: 0;
   box-sizing: border-box;
+  display: flex; flex-direction: column;
+  min-height: 0;
 }
 .pl-grid {
   display: grid;
@@ -1071,11 +1099,27 @@ a { color: inherit; text-decoration: none; }
      所以干脆让正文先占满，图标整齐地排在下一行右端。 */
   /* 一行宽度 ≈ 314px：正文 + 标签 + 三个按钮要一起塞下，所以按钮 40/40/34 并给正文让位。
      用 nowrap + 正文省略号：一行一定放得下，正文过长就省略（点编辑能看全）。 */
-  .tl-item { gap: 0 2px !important; padding: 7px 0 7px 3px !important; flex-wrap: nowrap !important; }
-  .tl-item .tl-time { min-width: 32px; font-size: 12px; }
-  .tl-item .dot { margin-left: 0; }
-  .tl-item .tl-word { flex: 1 1 40px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  /* 时长标签在窄屏下也让位：能省则省 */
+  /* ★ v17：正文必须完整显示。原来用 nowrap + 省略号，手机上根本看不出记的是啥，
+     现在改成「时间 + 正文」占满第一行、正文自动换行；时长/地点标签折到第二行，
+     三个图标按钮贴在第二行右端。行高随内容增长，不截断。 */
+  .tl-item {
+    gap: 2px 6px !important;
+    padding: 8px 0 8px 3px !important;
+    flex-wrap: wrap !important;
+    align-items: flex-start;
+  }
+  .tl-item .tl-time { min-width: 34px; font-size: 12.5px; line-height: 21px; flex: none; }
+  .tl-item .dot { margin-left: 0; margin-top: 7px; }
+  .tl-item .tl-word {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: visible;
+    text-overflow: clip;
+    white-space: normal;          /* 关键：允许换行 */
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    line-height: 21px;
+  }
   .tl-item .tl-diff { flex: none; }
   .tl-item .tl-del { width: 32px !important; height: 32px !important; }
   /* 时长 / 地点标签跟在正文后面，放不下时自然折到下一行 */
@@ -1198,6 +1242,15 @@ a { color: inherit; text-decoration: none; }
 .tl-item:hover .tl-del { opacity: 1; }
 .tl-del:hover { color: var(--danger-deep); background: rgba(196, 148, 148, .12); }
 @media (hover: none) { .tl-del { opacity: .55; } }
+
+/* ★ v17：记录正文一律完整显示，不做省略号截断（手机 / 平板 / 桌面统一） */
+.tl-word, .span-body .tl-word, .his-row .tl-word {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
 
 .tl-item.enter { animation: tl-in 320ms var(--ease); }
 @keyframes tl-in {
@@ -1752,6 +1805,21 @@ a { color: inherit; text-decoration: none; }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast button { pointer-events: auto; margin-left: 10px; color: var(--accent-deep); font-weight: 600; }
 
+/* 同步诊断 */
+.diag-body { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; }
+.diag-row {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 9px 12px; border-radius: var(--radius-md);
+  background: var(--surface-soft); font-size: 13px; line-height: 1.55;
+}
+.diag-row .k { color: var(--text-2); flex: none; min-width: 68px; }
+.diag-row .v { color: var(--text); word-break: break-all; }
+.diag-row.ok .v { color: var(--accent-deep); }
+.diag-row.warn { background: rgba(214, 176, 122, .16); }
+.diag-row.warn .v { color: #9A7434; }
+.diag-row.bad { background: rgba(196, 148, 148, .16); }
+.diag-row.bad .v { color: var(--danger-deep); }
+
 /* ---------- 顶栏（参考 growth-desk：日期 + 实时时钟 + 本地标识） ---------- */
 .topbar {
   display: flex;
@@ -1780,6 +1848,8 @@ a { color: inherit; text-decoration: none; }
 }
 .local-badge svg { width: 11px; height: 11px; }
 /* 同步完成时徽标轻闪一下，给一个"确实同步过了"的视觉确认 */
+.local-badge.stale { color: #9A7434; }
+.local-badge.stale svg { color: #9A7434; }
 .local-badge.just-synced {
   animation: badgePulse .9s ease;
 }
@@ -2608,12 +2678,13 @@ a { color: inherit; text-decoration: none; }
       <div class="mg-foot">
         <span class="count"></span>
         <div class="foot-right">
+          <button class="ghost-btn" id="btnCloudDiag">诊断</button>
           <button class="ghost-btn" id="btnCloudCancel2">关闭</button>
           <button class="ghost-btn danger" id="btnCloudLeave">断开连接</button>
           <button class="primary-btn" id="btnCloudSyncNow">立即同步</button>
         </div>
       </div>
-      <p class="cloud-hint">把共享码发给家人 / 同事，他们在自己设备上输入即可同步。改动后约 1.5 秒自动上传，每 30 秒拉取一次。<br>多台设备各记各的也没问题：同步时按条目合并，不会互相覆盖。</p>
+      <p class="cloud-hint">把共享码发给家人 / 同事，他们在自己设备上输入即可同步。改动后约 1.5 秒自动上传，每 12 秒拉取一次。<br>多台设备各记各的也没问题：同步时按条目合并，不会互相覆盖。</p>
     </div>
   </div>
 </div>
@@ -2643,6 +2714,18 @@ a { color: inherit; text-decoration: none; }
       <button class="ghost-btn" id="btnBackupClose">完成</button>
     </div>
     <p class="cloud-hint">自动备份只能防「误操作 / 代码异常」；防止手机清理缓存、换设备丢数据，请定期用「导出文件」存一份到手机或网盘。</p>
+  </div>
+</div>
+
+<div class="modal-mask" id="diagModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="diagTitle">
+    <h3 id="diagTitle">同步诊断</h3>
+    <p class="modal-sub">连接不上时，先看这里的红线在哪一步</p>
+    <div id="diagBody" class="diag-body"></div>
+    <div class="mg-foot">
+      <button class="ghost-btn" id="btnDiagCopy">复制诊断信息</button>
+      <button class="ghost-btn" id="btnDiagClose">关闭</button>
+    </div>
   </div>
 </div>
 
@@ -2811,7 +2894,7 @@ function normalizeState(d) {
   if (Array.isArray(d.places))  s.places  = d.places.filter(p => p && typeof p.name === "string" && p.name.trim()).map(p => ({ id: String(p.id || uid()), name: p.name.trim().slice(0, 12) }));
   if (Array.isArray(d.records)) s.records = d.records.filter(r => r && typeof r.ts === "number").map(r => ({ id: String(r.id || uid()), wordId: String(r.wordId || ""), wordText: String(r.wordText || "").slice(0, 60), color: validColor(r.color), combo: !!r.combo, placeId: String(r.placeId || ""), noPlace: !!r.noPlace, spanId: String(r.spanId || ""), ts: r.ts }));
   /* 期间（一心多用）：标题必填、时间合法才保留 */
-  if (Array.isArray(d.spans)) s.spans = d.spans.filter(sp => sp && typeof sp.title === "string" && sp.title.trim() && typeof sp.startTs === "number").map(sp => ({ id: String(sp.id || uid()), title: sp.title.trim().slice(0, 20), startTs: sp.startTs, endTs: Number(sp.endTs) > 0 ? Math.floor(Number(sp.endTs)) : 0 }));
+  if (Array.isArray(d.spans)) s.spans = d.spans.filter(sp => sp && typeof sp.title === "string" && sp.title.trim() && typeof sp.startTs === "number").map(sp => ({ id: String(sp.id || uid()), title: sp.title.trim().slice(0, 20), startTs: sp.startTs, endTs: Number(sp.endTs) > 0 ? Math.floor(Number(sp.endTs)) : 0, placeId: String(sp.placeId || ""), noPlace: !!sp.noPlace }));
   if (Array.isArray(d.todos))   s.todos   = d.todos.filter(t => t && typeof t.text === "string").map(t => ({ id: String(t.id || uid()), text: t.text.slice(0, 80), done: !!t.done, createdAt: Number(t.createdAt) || Date.now() }));
   if (Array.isArray(d.comps))   s.comps   = d.comps.filter(c => c && typeof c.name === "string" && c.name.trim()).map(c => ({ id: String(c.id || uid()), name: c.name.trim().slice(0, 40), url: String(c.url || "").slice(0, 300), deadline: validDate(c.deadline), poster: typeof c.poster === "string" ? c.poster.slice(0, 300000) : "", note: String(c.note || "").slice(0, 30), createdAt: Number(c.createdAt) || Date.now() }));
   if (Array.isArray(d.health))  s.health  = d.health.filter(h => h && validDate(h.date)).map(h => ({ id: String(h.id || uid()), date: validDate(h.date), sleep: Number(h.sleep) > 0 ? clampNum(h.sleep, 0, 24 * 60) : null, nap: Number(h.nap) > 0 ? clampNum(h.nap, 0, 720) : null, hr: Number(h.hr) > 0 ? clampNum(h.hr, 30, 220) : null }));
@@ -2881,6 +2964,21 @@ function getCats() {
 function catOf(key) {
   const cats = getCats();
   return cats.find(c => c.key === key) || cats.find(c => c.key === "other") || { key: "other", name: "其他", color: "#B6B0A8" };
+}
+
+/* 静默落盘：只写 localStorage，不触发「本地改动 → 推送」链路。
+   ★ 为什么必须有它：pushToCloud / pullFromCloud 收尾都要把同步水位写回磁盘，
+     原来直接调 saveState()/setItem 会经 schedulePush 把 sync.dirty 重新置 true
+     并挂一个 1.5 秒后的定时推送 —— 结果「每推一次就再排一次」，同步开着时
+     永远每 1.5 秒无限重推，而且 cloudBusy 被那次多余推送占住，
+     紧接着的拉取（用户点「立即同步」）会被判成"忙"直接跳过。
+     这不是测试问题，是真会发生的线上行为。 */
+function saveStateQuiet() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    toast("保存失败：本地存储空间不足");
+  }
 }
 
 function saveState(s) {
@@ -2974,6 +3072,26 @@ function fmtDiff(ms) {
   if (h < 24) return rm ? h + "小时" + rm + "分" : h + "小时";
   const d = Math.floor(h / 24), rh = h % 24;
   return rh ? d + "天" + rh + "小时" : d + "天";
+}
+
+/* 计算「某条记录作为上一跳」时，下一跳应该从哪里开始计时。
+   规则：如果它属于某个期间，且该期间已经结束、结束时间晚于它的时间戳，
+   就从「期间结束」开始算（期间内做的事是并行的，不该把整段期间算进去）。
+   例外：期间之后还有别的记录，就不该拿期间结束去当前一条 → 由调用方保证只处理相邻。 */
+function prevAnchorTs(prevRec, nextTs) {
+  const base = Number(prevRec && prevRec.ts) || 0;
+  if (!base) return base;
+  let sp = null;
+  if (prevRec.spanId) sp = (state.spans || []).find(x => x.id === prevRec.spanId) || null;
+  if (!sp) {
+    /* 没显式挂期间：时间落在某个已结束期间的区间里，也算 */
+    const hits = (state.spans || []).filter(x => x.endTs && base >= x.startTs && base <= x.endTs);
+    if (hits.length) sp = hits.sort((a, b) => b.startTs - a.startTs)[0];
+  }
+  if (!sp || !sp.endTs) return base;              /* 期间还没结束 → 按记录本身 */
+  if (sp.endTs <= base) return base;              /* 期间结束得比记录还早 → 异常数据，按记录本身 */
+  if (isFinite(nextTs) && nextTs < sp.endTs) return base; /* 下一跳在期间内 → 按记录本身 */
+  return sp.endTs;
 }
 
 /* ¥123.5 / ¥1,240（千分位，去尾零） */
@@ -3637,23 +3755,52 @@ function recPlace(r) {
 
 /* 按当天时间线正序推进：地点发生变化就生成一段 A → B（同一地点连续只算停留） */
 function buildMoves(items) {
-  const seq = [];
+  /* ★ v17：期间本身也可以是地点节点（上课在教学楼、开会在会议室）。
+     位置用「期间结束时间」（进行中的期间用开始时间），这样
+     「期间结束 → 换地方」的动线顺序和时长都是对的。 */
+  const plain = [];
   for (const it of items) {
-    if (it.kind !== "rec") continue;
-    const p = recPlace(it.data);
+    if (it.kind === "rec") {
+      plain.push({ ts: itemTs(it), rec: it.data });
+    } else if (it.kind === "span") {
+      const sp = it.data || it.sp;
+      if (!sp) continue;
+      const p = spanPlace(sp);
+      if (!p) continue;
+      plain.push({ ts: sp.endTs || sp.startTs, span: sp, place: p });
+    }
+  }
+  plain.sort((a, b) => a.ts - b.ts);
+
+  /* 按时间正序推进：地点变化才生成一段 A → B（同地点连续只算停留） */
+  const seq = [];
+  for (const n of plain) {
+    const p = n.rec ? recPlace(n.rec) : n.place;
     if (!p) continue;
     const last = seq[seq.length - 1];
-    if (last && last.place.id === p.id) { last.lastTs = itemTs(it); continue; } /* 同一地点：记下最后一次停留时间 */
-    seq.push({ place: p, ts: itemTs(it), lastTs: itemTs(it), recId: it.data.id });
+    if (last && last.place.id === p.id) { last.lastTs = Math.max(last.lastTs, n.ts); continue; }
+    seq.push({
+      place: p,
+      ts: n.ts,
+      lastTs: n.ts,
+      recId: n.rec ? n.rec.id : "",
+      spanId: n.span ? n.span.id : "",
+    });
   }
+  return finalizeMoves(seq);
+}
+
+/* 把「地点序列」变成「动线列表」：相邻两个不同地点之间算一次移动 */
+function finalizeMoves(seq) {
   const moves = [];
   for (let i = 1; i < seq.length; i++) {
     moves.push({
       from: seq[i - 1].place,
       to: seq[i].place,
-      fromTs: seq[i - 1].lastTs, /* 离开上个地点的时间：取在那儿的最后一条记录 */
+      fromTs: seq[i - 1].lastTs, /* 离开上个地点的时间：取在那儿的最后一条记录 / 期间结束 */
       toTs: seq[i].ts,           /* 抵达新地点的时间：取在这儿的第一条记录 */
       recId: seq[i].recId, /* 插到这条记录上方 */
+      spanId: seq[i].spanId || "",
     });
   }
   return { seq, moves };
@@ -3673,6 +3820,24 @@ function buildSpanHead(sp) {
   st.textContent = fmtTime(sp.startTs) + " 开始" + (sp.endTs ? " · " + fmtTime(sp.endTs) + " 结束" : " · 进行中");
   const ops = document.createElement("span");
   ops.className = "span-ops";
+  /* ★ v17：期间也能标地点（上课在教学楼、开会在会议室），并参与动线 */
+  const curPl = spanPlace(sp);
+  if (curPl) {
+    const tag = document.createElement("span");
+    tag.className = "place-tag";
+    tag.innerHTML = pinSvg(2.2);
+    const nm = document.createElement("span");
+    nm.textContent = curPl.name;
+    tag.appendChild(nm);
+    head.appendChild(tag);
+  }
+  const pm = document.createElement("button");
+  pm.type = "button";
+  pm.className = "tl-place" + ((sp.placeId || sp.noPlace) ? " on" : "");
+  pm.setAttribute("aria-label", "标记这个期间的地点");
+  pm.title = "标记这个期间的地点";
+  pm.innerHTML = pinSvg(1.9);
+  pm.addEventListener("click", (e) => { e.stopPropagation(); openPickSpan(sp.id); });
   const ed = document.createElement("button");
   ed.type = "button";
   ed.className = "tl-edit";
@@ -3685,9 +3850,24 @@ function buildSpanHead(sp) {
   de.setAttribute("aria-label", "删除这个期间");
   de.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   de.addEventListener("click", (e) => { e.stopPropagation(); deleteSpan(sp.id); });
-  ops.append(ed, de);
+  ops.append(pm, ed, de);
   head.append(t, st, ops);
   return head;
+}
+
+/* 期间的当前地点：显式指定 > 标题里命中地址名 */
+function spanPlace(sp) {
+  if (!sp) return null;
+  if (sp.noPlace) return null;
+  if (sp.placeId) {
+    const p = (state.places || []).find(x => x.id === sp.placeId);
+    if (p) return p;
+  }
+  /* 标题里出现地址名也算（「在教学楼上课」→ 教学楼） */
+  const t = String(sp.title || "");
+  const hits = (state.places || []).filter(p => p.name && t.includes(p.name));
+  if (!hits.length) return null;
+  return hits.sort((a, b) => b.name.length - a.name.length)[0];
 }
 
 /* 期间区块尾部：总时长 + 期间内几条记录 / 进行中 */
@@ -3766,13 +3946,17 @@ function renderTimeline(flashId) {
   /* 只有期间、没有任何记录/待办时：也要建出今天的日期分组，否则区块无处可挂 */
   if (!items.length) items.push({ kind: "_anchor", data: { ts: Date.now(), createdAt: Date.now() } });
 
-  /* 相邻两条记录的时长差（只显示时长，不带"距上条"前缀；待办不参与） */
+  /* 相邻两条记录的时长差（只显示时长，不带"距上条"前缀；待办不参与）
+     ★ v17 修正：上一条落在「期间」里时，起点要取「期间的结束时间」。
+       例如 10:00–10:45 上课，10:50 上厕所 → 应该算 5 分钟，
+       而不是从 10:00 算成 50 分钟。期间还没结束时，仍按记录本身时间算。 */
   const recs = [...state.records].sort((a, b) => a.ts - b.ts);
   const diffMap = {};
   for (let i = 1; i < recs.length; i++) {
     if (!recs[i].ts || !recs[i - 1].ts) continue;
     if (dayKey(recs[i].ts) !== dayKey(recs[i - 1].ts)) continue; /* 跨天的差不算（主页只显示当天） */
-    diffMap[recs[i].id] = fmtDiff(recs[i].ts - recs[i - 1].ts);
+    const fromTs = prevAnchorTs(recs[i - 1], recs[i].ts);
+    diffMap[recs[i].id] = fmtDiff(recs[i].ts - fromTs);
   }
 
   /* 日期分组（从早到晚，类似日记） */
@@ -3803,8 +3987,21 @@ function renderTimeline(flashId) {
 
     /* V4.0：当天动线（按天计算，跨天不连），挂在新地点那条记录上方 */
     const moveByRec = {};
+    /* 期间也要参与动线：把当天的期间（带地点的）塞进 items 一起算。
+       ★ 动线行挂载点：有 recId 就挂在记录上方；
+         若这段动线是「期间 → 下一条有地点的记录」，recId 就是那条记录；
+         而「期间本身作为终点」的那种（期间 A → 期间 B），挂到后一个期间块的末尾。 */
+    const spanMoves = [];
     if (showMovesOn()) {
-      buildMoves(g.items).moves.forEach(m => { moveByRec[m.recId] = m; });
+      const moveItems = g.items.concat(
+        state.spans
+          .filter(s2 => spanPlace(s2) && dayKey(s2.endTs || s2.startTs) === g.key)
+          .map(s2 => ({ kind: "span", data: s2 }))
+      );
+      buildMoves(moveItems).moves.forEach(m => {
+        if (m.recId) moveByRec[m.recId] = m;
+        else spanMoves.push(m);
+      });
     }
 
     let lastHour = null;
@@ -3852,6 +4049,9 @@ function renderTimeline(flashId) {
         return t >= sp.startTs && (!sp.endTs || t <= sp.endTs);
       });
       if (inner.length) blk.appendChild(buildSpanInnerMove(sp, inner)); /* 期间内也要能动线 */
+      /* ★ v17：这个期间作为「目的地」的动线（比如 宿舍 → 教学楼）画在头部之后，
+         这样期间也能参与动线，不再只有普通记录才推动线。 */
+      spanMoves.forEach(m => { if (m.spanId && m.spanId === sp.id) blk.appendChild(buildMoveRow(m)); });
       for (const it of inner) {
         if (it.kind === "rec") {
           const mv = moveByRec[it.data.id];
@@ -4421,7 +4621,7 @@ document.getElementById("btnToSpan").addEventListener("click", () => {
 
   if (activeSpan()) { toast("已有进行中的期间，请先结束"); return; }
 
-  const sp = { id: uid(), title: title.slice(0, 20), startTs, endTs: 0 };
+  const sp = { id: uid(), title: title.slice(0, 20), startTs, endTs: 0, placeId: "", noPlace: false };
   state.spans.push(sp);
   /* 这条记录归入期间，时间同步为期间开始时间 */
   r.spanId = sp.id;
@@ -4610,6 +4810,22 @@ function scrollToPage(n, smooth) {
   if (navs.length === 2) { navs[0].disabled = n <= 0; navs[1].disabled = n >= pages.length - 1; }
 }
 
+/* ★ v17：桌面滚轮竖向滚 → 翻页；左右方向键也能翻 */
+plList.addEventListener("wheel", (e) => {
+  if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;   /* 本来就是横滑，交给浏览器 */
+  e.preventDefault();
+  clearTimeout(plWheelTimer);
+  plWheelTimer = setTimeout(() => {
+    scrollToPage(plPage + (e.deltaY > 0 ? 1 : -1), true);
+  }, 40);
+}, { passive: false });
+let plWheelTimer = null;
+document.addEventListener("keydown", (e) => {
+  if (placeModal.hidden) return;
+  if (e.key === "ArrowLeft") { e.preventDefault(); scrollToPage(plPage - 1, true); }
+  if (e.key === "ArrowRight") { e.preventDefault(); scrollToPage(plPage + 1, true); }
+});
+
 /* 手指横滑时同步页码（滚动停下再更新，避免抖） */
 let plScrollTimer = null;
 plList.addEventListener("scroll", () => {
@@ -4665,9 +4881,14 @@ document.getElementById("btnPlaces").addEventListener("click", openPlaces);
 placeModal.addEventListener("click", (e) => { if (e.target === placeModal) closePlaces(); });
 
 /* ---------- 单条记录：手动指定地点 ---------- */
+/* 统一的地点选择器：记录 / 期间共用（★ v17：期间原来根本点不出这层） */
+let pickTarget = "rec";   /* "rec" | "span" */
+let pickSpanId = null;
+
 function openPick(id) {
   const r = state.records.find(x => x.id === id);
   if (!r) return;
+  pickTarget = "rec";
   pickRecId = id;
   const cur = recPlace(r);
   document.getElementById("pickSub").textContent = "「" + r.wordText + "」在哪个地点？";
@@ -4708,6 +4929,51 @@ function openPick(id) {
 
   document.getElementById("pickHint").textContent = state.places.length ? "" : "还没有地址，可直接用这条记录的文字新建";
   pickModal.hidden = false;
+}
+
+/* 给「期间」设地点：上课在教学楼、开会在会议室，动线里也算一站 */
+function openPickSpan(spanId) {
+  const sp = state.spans.find(x => x.id === spanId);
+  if (!sp) return;
+  pickTarget = "span";
+  pickSpanId = spanId;
+  pickRecId = null;
+  const cur = spanPlace(sp);
+  document.getElementById("pickSub").textContent = "期间「" + sp.title + "」在哪个地点？";
+  pickList.innerHTML = "";
+
+  state.places.forEach(p => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "pl-chip" + (cur && cur.id === p.id ? " sel" : "");
+    chip.textContent = p.name;
+    chip.addEventListener("click", () => assignSpanPlace(spanId, p.id));
+    pickList.appendChild(chip);
+  });
+
+  if (cur) {
+    const c = document.createElement("button");
+    c.type = "button";
+    c.className = "pl-chip clear";
+    c.textContent = "不算地点";
+    c.addEventListener("click", () => assignSpanPlace(spanId, ""));
+    pickList.appendChild(c);
+  }
+  document.getElementById("pickHint").textContent = state.places.length ? "" : "先在「地点」里加几个地址再来标记";
+  pickModal.hidden = false;
+}
+
+function assignSpanPlace(spanId, placeId) {
+  const sp = state.spans.find(x => x.id === spanId);
+  if (!sp) { closePick(); return; }
+  const p = state.places.find(x => x.id === placeId);
+  if (p) { sp.placeId = p.id; sp.noPlace = false; }
+  else { sp.placeId = ""; sp.noPlace = true; }
+  saveState();
+  closePick();
+  renderTimeline();
+  renderHistory();
+  toast(p ? "已标记为「" + p.name + "」" : "已取消这个期间的地点");
 }
 
 function closePick() { pickModal.hidden = true; pickRecId = null; }
@@ -6423,8 +6689,12 @@ async function cloudFetch(url, opt) {
 
 /* 业务数据是否为空（用于防止「空覆盖有」） */
 function isEmptyBiz(s) {
-  return !s.records.length && !s.todos.length && !s.ledger.length &&
-         !s.comps.length && !s.health.length;
+  /* ★ v17：云端可能是「只有部分字段」的残缺对象（老版本写坏的、或别人手改过），
+     直接访问 .records.length 会抛错 → 整条同步链路被 catch 吞掉，
+     表现就是「怎么点都不同步、页面还是空的」。这里全部做存在性兜底。 */
+  const a = (k) => (Array.isArray(s && s[k]) ? s[k] : []);
+  return !a("records").length && !a("todos").length && !a("ledger").length &&
+         !a("comps").length && !a("health").length;
 }
 
 /* 推送到云端的载荷：剥离 sync（sync 是设备本地元数据，不参与共享） */
@@ -6594,7 +6864,10 @@ function mergeData(base, local, remote, pushSide) {
 async function pushToCloud(opts) {
   opts = opts || {};
   if (!state.sync || !state.sync.enabled || !state.sync.binId) return false;
-  if (cloudBusy) return false;
+  /* 正在同步：这次的改动会被下一次（最多 12 秒后的轮询/推送）带走，
+     但必须把 dirty 保持为 true，否则"这次跳过"会被误当成"已同步"，
+     用户那条记录就永远上不去（曾经导致「记了却没同步」）。 */
+  if (cloudBusy) { state.sync.dirty = true; return false; }
   cloudBusy = true;
   setCloudBusy(true);
   try {
@@ -6619,17 +6892,28 @@ async function pushToCloud(opts) {
     await cloudPutBin(state.sync.binId, payload);
 
     if (merged.added || merged.removed) {
-      /* 本机数据比云端少了东西（别处新增），同步补进来，界面立刻可见 */
+      /* 本机数据比云端少了东西（别处新增），同步补进来，界面立刻可见。
+         ★ v17 关键修复：normalizeState() 返回的对象里没有 sync 字段，
+           Object.assign 会把 state.sync 直接覆盖成 undefined / 空对象；
+           之前这里取的 keepSync 是个浅拷贝没问题，但 normalizeSync 在
+           sync 为 undefined 时会退回「未连接」默认值 —— 于是推送一次之后
+           连接就悄悄断了。下面显式兜住 enabled / code / binId，永远不丢连接。 */
       const keepSync = Object.assign({}, state.sync);
+      const keepUi = state.ui;
       Object.assign(state, normalizeState(merged.data));
-      state.sync = normalizeSync(keepSync);
+      state.ui = keepUi;                 /* UI 偏好始终用本机的 */
+      state.sync = normalizeSync(Object.assign({}, keepSync, {
+        enabled: !!(keepSync && keepSync.enabled),
+        code: (keepSync && keepSync.code) || "",
+        binId: (keepSync && keepSync.binId) || "",
+      }));
       rerenderAll();
     }
     state.sync.base = stampMap(merged.data);
     state.sync.lastSyncAt = Date.now();
     state.sync.lastRemoteAt = payload.updatedAt;
     state.sync.dirty = false;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); /* 只落盘，不再触发推送 */
+    saveStateQuiet(); /* 只落盘，不再触发推送 */
     setCloudBadge();
     flashCloudBadge();
     if (!opts.silent) toast("已同步到云端");
@@ -6647,6 +6931,8 @@ async function pushToCloud(opts) {
 async function pullFromCloud(opts) {
   opts = opts || {};
   if (!state.sync || !state.sync.enabled || !state.sync.binId) return false;
+  /* 拉取只是读，跳过没有副作用（下一轮再拉）。
+     ★ 注意这里绝不能像 pushToCloud 那样置 dirty —— 拉取不产生任何本地改动。 */
   if (cloudBusy) return false;
   cloudBusy = true;
   setCloudBusy(true);
@@ -6673,8 +6959,10 @@ async function pullFromCloud(opts) {
     /* 本地有未推送的改动 → 交给 pushToCloud（它会先合并再写），这里不覆盖本地 */
     if (state.sync.dirty && !opts.manual) return false;
 
-    /* 首次对齐时不受时间水位限制；之后才按 updatedAt 判断有没有新东西 */
-    if (!baseJustBuilt && remoteAt <= (state.sync.lastRemoteAt || 0)) return false;
+    /* 首次对齐时不受时间水位限制；之后才按 updatedAt 判断有没有新东西。
+       ★ v17：手动点「立即同步」时必须真的去拉一次（用户已经明确要求），
+         否则点下去什么都不会发生，看起来就是「同步按钮没用」。 */
+    if (!baseJustBuilt && !opts.manual && remoteAt <= (state.sync.lastRemoteAt || 0)) return false;
 
     const merged = mergeData(state.sync.base, state, data, false);
     const keepSync = state.sync;
@@ -6688,7 +6976,7 @@ async function pullFromCloud(opts) {
       state.sync.lastRemoteAt = remoteAt;
       state.sync.lastSyncAt = Date.now();
       state.sync.base = stampMap(data);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      saveStateQuiet();
       setCloudBadge();
       return false;
     }
@@ -6701,7 +6989,7 @@ async function pullFromCloud(opts) {
     state.sync.lastRemoteAt = remoteAt;
     state.sync.lastSyncAt = Date.now();
     state.sync.base = stampMap(merged.data);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    saveStateQuiet();
     rerenderAll();
     setCloudBadge();
     flashCloudBadge();
@@ -7014,6 +7302,24 @@ async function joinCloud(rawCode) {
       rerenderAll();
     }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    /* ★ v17：加入成功后立刻「回读一次」确认真的连上了。
+       之前如果后台报错被 catch 吞掉，界面照样显示"已加入"，用户以为同步好了其实没连上。
+       现在：读不到 / 读出来不是这个共享组 → 明确告诉用户失败原因。 */
+    try {
+      const check = await cloudGetBin(binId);
+      const n2 = ((check && check.records) || []).length;
+      state.sync.lastSyncAt = Date.now();
+      state.sync.lastRemoteAt = Number(check && check.updatedAt) || 0;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      renderCloudModal();
+      setCloudBadge();
+      rerenderAll();
+      if (n2 || (state.records || []).length) {
+        toast("已连接 " + code + "，云端共 " + n2 + " 条记录");
+      }
+    } catch (e) {
+      toast("连接已建立，但云端校验失败：" + ((e && e.message) || "网络异常") + "（稍后会自动重试）");
+    }
     setCloudBadge();
     renderCloudModal();
     startPolling();
@@ -7101,6 +7407,7 @@ document.getElementById("btnCloud").addEventListener("click", openCloud);
 document.getElementById("btnCloudCancel").addEventListener("click", closeCloud);
 document.getElementById("btnCloudCancel2").addEventListener("click", closeCloud);
 document.getElementById("btnCloudCreate").addEventListener("click", createCloudGroup);
+document.getElementById("btnCloudDiag").addEventListener("click", () => { if (window.openDiag) window.openDiag(); });
 document.getElementById("btnCloudJoin").addEventListener("click", () => joinCloud(document.getElementById("cloudCodeInput").value));
 document.getElementById("cloudCodeInput").addEventListener("keydown", (e) => {
   if (e.key === "Enter") joinCloud(document.getElementById("cloudCodeInput").value);
@@ -7645,6 +7952,112 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   });
 }
+
+/* ============================================================
+   ★ v17 首屏保险：绝不出现「一片空白」
+   —— 现象：APP 打开是空的，导入数据后还是空的。
+   —— 原因之一：本机有连接信息，但云端请求失败/超时，某些路径会提前 return，
+      页面停在没有渲染的状态；用户看到的就是空白，误以为数据没了。
+   —— 这里在启动后做一次兜底：只要有本地数据而界面还是空的，就强制重绘；
+      同时把同步异常显示在顶栏，而不是悄悄吞掉。
+   ============================================================ */
+(function () {
+  function hasLocalData() {
+    try {
+      return (state.records || []).length + (state.todos || []).length +
+             (state.ledger || []).length + (state.comps || []).length +
+             (state.health || []).length + (state.spans || []).length > 0;
+    } catch (_) { return false; }
+  }
+  function timelineEmpty() {
+    const box = document.getElementById("timeline");
+    if (!box) return true;
+    return box.querySelectorAll(".tl-item").length === 0;
+  }
+  function guard() {
+    try {
+      if (hasLocalData() && timelineEmpty()) {
+        /* 只在「记录台」视图下重绘，避免把别的视图顶掉 */
+        const v = (location.hash || "").replace(/^#\/?/, "");
+        if (!v || v === "record") renderTimeline();
+        renderSpanBar && renderSpanBar();
+      }
+      /* 有连接但很久没同步成功 → 顶栏给个明确提示 */
+      const sync = state.sync || {};
+      if (sync.enabled && sync.lastSyncAt && (Date.now() - sync.lastSyncAt) > 10 * 60 * 1000) {
+        const badge = document.getElementById("localBadge");
+        if (badge) {
+          badge.classList.add("stale");
+          badge.title = "最近一次成功同步是 " + fmtAgo(sync.lastSyncAt) + "，可能网络不通";
+        }
+      }
+    } catch (_) {}
+  }
+  window.addEventListener("load", () => setTimeout(guard, 300));
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(guard, 200); });
+
+  /* ---- 诊断：把关键状态列出来 ---- */
+  window.openDiag = async function () {
+    const body = document.getElementById("diagBody");
+    const modal = document.getElementById("diagModal");
+    if (!body || !modal) return;
+    body.innerHTML = "";
+    const add = (k, v, cls) => {
+      const row = document.createElement("div");
+      row.className = "diag-row" + (cls ? " " + cls : "");
+      const kk = document.createElement("span");
+      kk.className = "k"; kk.textContent = k;
+      const vv = document.createElement("span");
+      vv.className = "v"; vv.textContent = v;
+      row.append(kk, vv);
+      body.appendChild(row);
+    };
+    const sync = state.sync || {};
+    add("版本", "v17 · 2026-10-24");
+    add("本机记录", (state.records || []).length + " 条", "ok");
+    add("本机期间", (state.spans || []).length + " 个", "ok");
+    if (!sync.enabled) {
+      add("云同步", "未连接（只在本机）", "warn");
+    } else {
+      add("共享码", sync.code || "—", "ok");
+      add("上次同步", sync.lastSyncAt ? fmtAgo(sync.lastSyncAt) : "从未成功", sync.lastSyncAt ? "ok" : "bad");
+      add("待推送", sync.dirty ? "有本地改动还没上传" : "已无待推送", sync.dirty ? "warn" : "ok");
+      add("正在请求云端…", "请稍候", "");
+      const idx = body.children.length - 1;
+      try {
+        const cloud = await cloudGetBin(sync.binId);
+        const n = ((cloud && cloud.records) || []).length;
+        body.children[idx].className = "diag-row ok";
+        body.children[idx].querySelector(".v").textContent = "成功，云端 " + n + " 条记录";
+        if (n < (state.records || []).length) {
+          add("差异", "本机比云端多 " + ((state.records || []).length - n) + " 条（点「立即同步」补上去）", "warn");
+        } else if (n > (state.records || []).length) {
+          add("差异", "云端比本机多 " + (n - (state.records || []).length) + " 条（点「立即同步」拉下来）", "warn");
+        } else {
+          add("差异", "两边一致", "ok");
+        }
+      } catch (e) {
+        body.children[idx].className = "diag-row bad";
+        body.children[idx].querySelector(".v").textContent = "失败：" + ((e && e.message) || "网络错误");
+        add("可能原因", "手机没有网络 / 云端服务暂时不通 / 被系统省电策略限制", "bad");
+      }
+    }
+    modal.hidden = false;
+  };
+
+  document.getElementById("btnDiagClose").addEventListener("click", () => {
+    document.getElementById("diagModal").hidden = true;
+  });
+  document.getElementById("btnDiagCopy").addEventListener("click", () => {
+    const txt = Array.from(document.querySelectorAll("#diagBody .diag-row"))
+      .map(r => r.querySelector(".k").textContent + "：" + r.querySelector(".v").textContent)
+      .join("\n");
+    navigator.clipboard && navigator.clipboard.writeText(txt).then(
+      () => toast("已复制，可直接发给我"),
+      () => toast("复制失败，截图也行")
+    ) || toast("复制失败，截图也行");
+  });
+})();
 </script>
 </body>
 </html>
