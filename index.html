@@ -1779,6 +1779,15 @@ a { color: inherit; text-decoration: none; }
   letter-spacing: .05em;
 }
 .local-badge svg { width: 11px; height: 11px; }
+/* 同步完成时徽标轻闪一下，给一个"确实同步过了"的视觉确认 */
+.local-badge.just-synced {
+  animation: badgePulse .9s ease;
+}
+@keyframes badgePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(140, 160, 145, .55); }
+  60%  { box-shadow: 0 0 0 7px rgba(140, 160, 145, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(140, 160, 145, 0); }
+}
 
 /* 圆形图标按钮（顶栏菜单等） */
 .icon-btn {
@@ -2595,6 +2604,7 @@ a { color: inherit; text-decoration: none; }
       </div>
       <div class="cloud-code" id="cloudCodeShow" title="点击复制共享码">--------</div>
       <p class="cloud-meta" id="cloudMeta">上次同步：—</p>
+      <p class="cloud-meta" id="cloudMode"></p>
       <div class="mg-foot">
         <span class="count"></span>
         <div class="foot-right">
@@ -2603,7 +2613,7 @@ a { color: inherit; text-decoration: none; }
           <button class="primary-btn" id="btnCloudSyncNow">立即同步</button>
         </div>
       </div>
-      <p class="cloud-hint">把共享码发给家人 / 同事，他们在自己设备上输入即可同步。数据改动后会自动上传（约 1.5 秒内），并每 30 秒拉取一次更新。</p>
+      <p class="cloud-hint">把共享码发给家人 / 同事，他们在自己设备上输入即可同步。改动后约 1.5 秒自动上传，每 30 秒拉取一次。<br>多台设备各记各的也没问题：同步时按条目合并，不会互相覆盖。</p>
     </div>
   </div>
 </div>
@@ -2694,8 +2704,11 @@ function defaultSync() {
     binId: "",         // 云端 bin id（缓存，避免每次查目录）
     enabled: false,    // 是否已连接
     lastSyncAt: 0,     // 最近一次成功同步的时间戳
-    lastRemoteAt: 0,   // 最近一次从云端拉到的 updatedAt（用于 LWW 比较）
+    lastRemoteAt: 0,   // 最近一次从云端拉到的 updatedAt
     dirty: false,      // 本地是否有未推送改动
+    owner: false,      // 本机是否为「共享组的创建者」
+    mode: 2,           // 2 = 合并同步（多设备各记各的）；1 = 旧版整份覆盖
+    base: null,        // 合并基线：{ records:{id:ts}, todos:{...}, ... }
   };
 }
 
@@ -2777,6 +2790,11 @@ function normalizeSync(v) {
   d.lastSyncAt = Number(v.lastSyncAt) > 0 ? Math.floor(Number(v.lastSyncAt)) : 0;
   d.lastRemoteAt = Number(v.lastRemoteAt) > 0 ? Math.floor(Number(v.lastRemoteAt)) : 0;
   d.dirty = !!v.dirty;
+  d.owner = !!v.owner;
+  /* 老连接没有 mode 字段 → 视为 1（旧版整份覆盖）。这里「不」自动升级，
+     升级动作放在 pullFromCloud 里做一次「基线初始化」，见 ensureBase()。 */
+  d.mode = Number(v.mode) === 1 ? 1 : 2;
+  d.base = (v.base && typeof v.base === "object") ? v.base : null;
   return d;
 }
 
@@ -6383,7 +6401,7 @@ function rerenderAll() {
 const CLOUD = {
   api: "https://api.jsonbin.io/v3/b",
   dirBinId: "6ad1aed5ffd5d160536fc200", /* 目录 bin：{v,dir:{code:binId},pool:[binId...]} */
-  pollMs: 30000,                       /* 轮询拉取间隔 */
+  pollMs: 12000,                       /* 轮询拉取间隔（12 秒，拉取只是读，开销很小） */
   pushDebounceMs: 1500,                /* 本地改动后延迟推送（合并高频写） */
   timeoutMs: 15000,
 };
@@ -6453,6 +6471,125 @@ async function cloudPutBin(binId, payload) {
   return true;
 }
 
+/* ============================================================
+   合并引擎（v2）
+   —— 问题背景：旧版是「整份覆盖」。A 设备加一条就整包 PUT，B 设备
+      下次轮询只会「整份替换成 A 的」，于是 B 自己记的东西消失；
+      B 再推一次又把 A 的抹掉。两台设备看着就是「怎么都同步不了」。
+   —— 现在：按 id 做三方合并（base / local / remote），逐条判断谁新谁旧。
+        · 两边都有该 id → 取「更新的一侧」的整条记录
+        · 只有一边有 → 若这条在基线里存在过，说明另一边「删掉了」，跟着删；
+          否则视为「新增」，保留
+   —— 这样两台手机可以各记各的，记录只会越合越多，不会互相覆盖。
+   ============================================================ */
+const SYNC_LISTS = ["records", "spans", "todos", "ledger", "comps", "health"];
+const SYNC_KEYS  = ["words", "places", "ledgerCats"];
+
+/* 单条记录的「版本戳」：删除/修改都靠它判断新旧 */
+function itemStamp(kind, it) {
+  if (!it || typeof it !== "object") return 0;
+  if (kind === "records") return Number(it.ts) || 0;
+  if (kind === "spans")   return Math.max(Number(it.startTs) || 0, Number(it.endTs) || 0);
+  if (kind === "todos")   return (Number(it.createdAt) || 0) + (it.done ? 1 : 0);
+  if (kind === "ledger")  return Number(it.ts) || 0;
+  if (kind === "comps")   return Number(it.createdAt) || 0;
+  if (kind === "health")  return Number(it.hr) || 0;
+  return 0;
+}
+
+/* 从一份业务数据里抽出「id → 版本戳」映射，作为合并基线 */
+function stampMap(data) {
+  const m = {};
+  SYNC_LISTS.forEach(k => {
+    const o = {};
+    (Array.isArray(data && data[k]) ? data[k] : []).forEach(it => {
+      if (it && it.id) o[it.id] = itemStamp(k, it);
+    });
+    m[k] = o;
+  });
+  return m;
+}
+
+/* 三方合并一份业务数据：返回 { data, added, removed }
+   pushSide=true  —— 用于「推送到云端」：以本地为准，把云端缺的补上
+   pushSide=false —— 用于「从云端拉取」：以云端为准，把本地缺的补上
+   两种情况对「只有一边有」的条目处理方向相反，必须显式区分。 */
+function mergeData(base, local, remote, pushSide) {
+  base = base || stampMap({});
+  const out = toCloudPayload(normalizeState(local));
+  let added = 0, removed = 0;
+
+  SYNC_LISTS.forEach(kind => {
+    const b = (base && base[kind]) || {};
+    const L = Array.isArray(local && local[kind]) ? local[kind] : [];
+    const R = Array.isArray(remote && remote[kind]) ? remote[kind] : [];
+    const mapL = new Map(), mapR = new Map();
+    L.forEach(it => { if (it && it.id) mapL.set(it.id, it); });
+    R.forEach(it => { if (it && it.id) mapR.set(it.id, it); });
+    const ids = new Set([...mapR.keys(), ...mapL.keys()]);
+    const list = [];
+    ids.forEach(id => {
+      const l = mapL.get(id), r = mapR.get(id);
+      const inBase = Object.prototype.hasOwnProperty.call(b, id);
+      if (l && r) {
+        /* 两边都有：取版本更新的一侧（相等时取本地，避免无意义的抖动） */
+        list.push(itemStamp(kind, r) > itemStamp(kind, l) ? r : l);
+      } else if (l) {
+        /* 只有本地有。
+           —— 「推送到云端」时(base=云端旧值, remote=云端当前值)：云端从来没有它 =
+              本机刚新增 → 保留；
+           —— 「从云端拉取」时(base=上次一致值, remote=云端新值)：云端原本有、现在没了 =
+              别处删掉了 → 跟着删。
+           两者都用「是否在 base 里」来区分，方向恰好相反，所以交给 mergeData 的
+           pushSide 参数指定：push 传 true，pull 传 false。 */
+        if (inBase && !pushSide) { removed++; }        /* 拉取：别人删了 → 跟着删 */
+        else if (inBase && pushSide) { list.push(l); }  /* 推送：本机有就留着，云端缺的是本机新增 */
+        else { list.push(l); added++; }                 /* 不在 base：本机新增 */
+      } else if (r) {
+        /* 只有远端有。
+           —— 推送：远端有本机没有 → 本机删了它，保持删除（不再写回云端）；
+             只有当它不在 base（别处新加、本机还没拉到）时才收下。
+           —— 拉取：远端有 → 收下；若在 base 却在本地没了，说明本机删了，保持删除。 */
+        if (pushSide) {
+          if (inBase) { removed++; }                    /* 本机删过 → 别写回 */
+          else { list.push(r); added++; }               /* 别处新增 → 收下 */
+        } else {
+          if (inBase) { removed++; }                    /* 本机删过 → 保持删除 */
+          else { list.push(r); added++; }
+        }
+      }
+    });
+    /* 顺序：优先用本地顺序（用户熟悉），远端独有的追加在后 */
+    const order = new Map();
+    L.forEach((it, i) => { if (it && it.id) order.set(it.id, i); });
+    list.sort((A, B) => {
+      const av = A && A.id ? (order.has(A.id) ? order.get(A.id) : 1e9) : 1e9;
+      const bv = B && B.id ? (order.has(B.id) ? order.get(B.id) : 1e9) : 1e9;
+      return av - bv;
+    });
+    out[kind] = list;
+  });
+
+  /* 字典类（词 / 地点 / 分类）：按 id 取并集，只增不减，避免两边改名互相打架 */
+  SYNC_KEYS.forEach(k => {
+    const L = Array.isArray(local && local[k]) ? local[k] : [];
+    const R = Array.isArray(remote && remote[k]) ? remote[k] : [];
+    const seen = new Set();
+    const list = [];
+    L.forEach(it => { if (it && it.id && !seen.has(it.id)) { seen.add(it.id); list.push(it); } });
+    R.forEach(it => {
+      if (!it || !it.id) return;
+      if (!seen.has(it.id)) { seen.add(it.id); list.push(it); added++; }
+    });
+    out[k] = list;
+  });
+
+  /* UI 偏好不入共享，保持本机 */
+  out.ui = local.ui;
+  out.version = local.version;
+  return { data: out, added, removed };
+}
+
 /* ---- 推送：把本地数据推到云端 ---- */
 async function pushToCloud(opts) {
   opts = opts || {};
@@ -6463,17 +6600,38 @@ async function pushToCloud(opts) {
   try {
     const latest = await cloudGetBin(state.sync.binId);
     const remoteAt = Number(latest && latest.updatedAt) || 0;
-    /* 防「空覆盖有」：本地业务全空而远端有数据，拒绝推送 */
-    if (isEmptyBiz(state) && remoteAt > 0 && !isEmptyBiz(latest.data || {})) {
+    const remoteData = (latest && latest.data) || {};
+
+    /* 防「空覆盖有」：本机业务全空而远端有数据，拒绝推送 */
+    if (isEmptyBiz(state) && remoteAt > 0 && !isEmptyBiz(remoteData)) {
       if (!opts.silent) toast("本机数据为空，已阻止覆盖云端（避免误删）");
       return false;
     }
-    await cloudPutBin(state.sync.binId, buildPayload());
+
+    /* 先合并再写：把远端期间别处新增的内容一起带上，绝不整份替换。
+       remoteEmpty（云端还没有任何业务数据）时直接以本机为准整份写入，
+       避免把本机记录误判成「云端已删除」。 */
+    const merged = isEmptyBiz(remoteData)
+      ? { data: toCloudPayload(state), added: state.records.length, removed: 0 }
+      : mergeData(state.sync.base, state, remoteData, true);
+    const payload = { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: merged.data };
+
+    await cloudPutBin(state.sync.binId, payload);
+
+    if (merged.added || merged.removed) {
+      /* 本机数据比云端少了东西（别处新增），同步补进来，界面立刻可见 */
+      const keepSync = Object.assign({}, state.sync);
+      Object.assign(state, normalizeState(merged.data));
+      state.sync = normalizeSync(keepSync);
+      rerenderAll();
+    }
+    state.sync.base = stampMap(merged.data);
     state.sync.lastSyncAt = Date.now();
-    state.sync.lastRemoteAt = state.sync.lastSyncAt; /* 自己写的时间即最新 */
+    state.sync.lastRemoteAt = payload.updatedAt;
     state.sync.dirty = false;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); /* 只落盘，不再触发推送 */
     setCloudBadge();
+    flashCloudBadge();
     if (!opts.silent) toast("已同步到云端");
     return true;
   } catch (e) {
@@ -6485,7 +6643,7 @@ async function pushToCloud(opts) {
   }
 }
 
-/* ---- 拉取：把云端数据取回本地 ---- */
+/* ---- 拉取：把云端数据合并回本地 ---- */
 async function pullFromCloud(opts) {
   opts = opts || {};
   if (!state.sync || !state.sync.enabled || !state.sync.binId) return false;
@@ -6495,16 +6653,64 @@ async function pullFromCloud(opts) {
   try {
     const cloud = await cloudGetBin(state.sync.binId);
     const remoteAt = Number(cloud && cloud.updatedAt) || 0;
-    /* 本地有未推送改动时，不静默覆盖；手动同步则先推后退 */
-    if (state.sync.dirty) {
-      if (opts.force !== false && opts.manual) { /* 手动：先推再拉，保持简单 */ }
-      else return false;
-    }
-    /* 远端不比上次已知的更新 → 无需应用 */
-    if (remoteAt <= (state.sync.lastRemoteAt || 0)) return false;
     const data = cloud && cloud.data;
     if (!data || typeof data !== "object") return false;
-    applyCloudData(data, remoteAt);
+
+    /* 首次连上（或老版本升级上来）还没有基线：这里要一次「首次对齐」。
+       ★ 关键：基线必须建在「合并之前」，而且不能跳过这次合并本身。
+         之前的写法是「建基线 + 把 lastRemoteAt 清零 + 跳过水位判断」，
+         结果 `remoteAt <= lastRemoteAt` 虽然过了，但 mergeData 用的 base
+         已经是「云端当前快照」→ 云端每一条都被当成「双方都已有」，
+         等于什么都没拉下来（这正是"明明连着、却一条都同步不过来"的真凶）。
+         现在的做法：先用一份「空基线」做首次合并（云端有、本机没有的都算新增
+         拉下来），合并完再把基线设成合并结果。 */
+    let baseJustBuilt = false;
+    if (!state.sync.base) {
+      state.sync.base = stampMap({});
+      baseJustBuilt = true;
+    }
+
+    /* 本地有未推送的改动 → 交给 pushToCloud（它会先合并再写），这里不覆盖本地 */
+    if (state.sync.dirty && !opts.manual) return false;
+
+    /* 首次对齐时不受时间水位限制；之后才按 updatedAt 判断有没有新东西 */
+    if (!baseJustBuilt && remoteAt <= (state.sync.lastRemoteAt || 0)) return false;
+
+    const merged = mergeData(state.sync.base, state, data, false);
+    const keepSync = state.sync;
+    /* baseJustBuilt 时，即便本轮没带来新条目，也要把基线与水位刷新掉 */
+
+    /* 合并结果与原本地完全一致 → 只更新基线，不重绘（省电、不闪） */
+    const before = JSON.stringify(toCloudPayload(state));
+    const after = JSON.stringify(merged.data);
+    if (before === after) {
+      state.sync = keepSync;
+      state.sync.lastRemoteAt = remoteAt;
+      state.sync.lastSyncAt = Date.now();
+      state.sync.base = stampMap(data);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      setCloudBadge();
+      return false;
+    }
+
+    /* 有变化：应用合并结果，并更新基线 */
+    const uiKeep = state.ui;
+    Object.assign(state, normalizeState(merged.data));
+    state.ui = uiKeep;                 /* UI 偏好始终用本机的 */
+    state.sync = normalizeSync(Object.assign({}, keepSync));
+    state.sync.lastRemoteAt = remoteAt;
+    state.sync.lastSyncAt = Date.now();
+    state.sync.base = stampMap(merged.data);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    rerenderAll();
+    setCloudBadge();
+    flashCloudBadge();
+    if (!opts.silent) {
+      const bits = [];
+      if (merged.added) bits.push("新增 " + merged.added + " 条");
+      if (merged.removed) bits.push("同步删除 " + merged.removed + " 条");
+      toast("已同步" + (bits.length ? "：" + bits.join("，") : ""));
+    }
     return true;
   } catch (e) {
     if (!opts.silent) toast("拉取失败：" + (e && e.message ? e.message : "网络错误"));
@@ -6515,15 +6721,18 @@ async function pullFromCloud(opts) {
   }
 }
 
-/* 应用云端数据到本地（覆盖式，LWW）。保留本设备的 sync 连接信息。 */
+/* 保留旧接口（历史代码有调用）：整份替换仅用于「首次加入」场景
+   ★ keep 必须在 Object.assign 之前拍快照：normalizeState(data) 里没有 sync 字段，
+     覆盖后 state.sync 就没了，事后再取 keep 只能拿到 undefined（曾经的真 bug）。 */
 function applyCloudData(data, remoteAt) {
   try { localStorage.setItem(STORAGE_KEY + ".pre-join", JSON.stringify(state)); } catch (_) {}
-  const keep = state.sync;
+  const keep = Object.assign({}, state.sync);
   Object.assign(state, normalizeState(data));
   state.sync = normalizeSync(keep);
   state.sync.lastRemoteAt = remoteAt || Date.now();
   state.sync.lastSyncAt = Date.now();
   state.sync.dirty = false;
+  state.sync.base = stampMap(data);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   rerenderAll();
   setCloudBadge();
@@ -6553,6 +6762,13 @@ document.addEventListener("visibilitychange", () => {
     pullFromCloud({ silent: true });
   }
 });
+/* 手机熄屏 / 切后台会掐掉定时器；网络恢复或回到前台时补一次，避免"看着没同步" */
+window.addEventListener("online", () => {
+  if (state.sync && state.sync.enabled) pullFromCloud({ silent: true });
+});
+window.addEventListener("focus", () => {
+  if (state.sync && state.sync.enabled) pullFromCloud({ silent: true });
+});
 /* 关页前尽力把未推送改动送出去 */
 window.addEventListener("beforeunload", () => {
   if (state.sync && state.sync.enabled && state.sync.dirty) {
@@ -6562,6 +6778,18 @@ window.addEventListener("beforeunload", () => {
     } catch (_) {}
   }
 });
+
+/* 同步完成的视觉反馈：徽标亮一下 + 弹层里的"上次同步"文字即时刷新 */
+let flashTimer = null;
+function flashCloudBadge() {
+  const badge = document.getElementById("localBadge");
+  if (!badge) return;
+  badge.classList.add("just-synced");
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => badge.classList.remove("just-synced"), 1200);
+  const meta = document.getElementById("cloudMeta");
+  if (meta && state.sync && state.sync.enabled) meta.textContent = "上次同步：" + fmtAgo(state.sync.lastSyncAt);
+}
 
 /* ---- UI：顶栏徽标与侧栏脚注 ---- */
 function setCloudBusy(on) {
@@ -6615,11 +6843,38 @@ function renderCloudModal() {
   if (on) {
     document.getElementById("cloudCodeShow").textContent = state.sync.code;
     document.getElementById("cloudMeta").textContent = "上次同步：" + fmtAgo(state.sync.lastSyncAt);
+    const modeEl = document.getElementById("cloudMode");
+    if (modeEl) {
+      modeEl.textContent = state.sync.owner
+        ? "多设备合并同步：各设备记录会合到一起，不会互相覆盖"
+        : "多设备合并同步：这台设备的记录会与共享组合并，不会覆盖别人";
+    }
     document.getElementById("cloudState").textContent = "已连接";
     document.getElementById("cloudDot").className = "cloud-dot";
   } else {
     document.getElementById("cloudCodeInput").value = "";
   }
+}
+
+/* 找一个「干净」的 bin：池里有些位可能早被旧版本用过（残留数据），
+   直接领会让新组继承别人的旧记录。所以逐个探测，空 bin 才用；全不空就清扫最旧的。 */
+async function findReusableBin(pool) {
+  for (let i = 0; i < pool.length; i++) {
+    try {
+      const d = await cloudGetBin(pool[i]);
+      const data = (d && d.data) || {};
+      if (!data || typeof data !== "object" || !Object.keys(data).length) {
+        return { binId: pool[i], pool: pool.slice(0, i).concat(pool.slice(i + 1)) };
+      }
+    } catch (_) {
+      /* 读失败就当它可用，别把整池拖垮 */
+      return { binId: pool[i], pool: pool.slice(0, i).concat(pool.slice(i + 1)) };
+    }
+  }
+  /* 全都脏：用第一个并整个清空重写（旧版本遗留，无人引用） */
+  const binId = pool[0];
+  await cloudPutBin(binId, { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: {} });
+  return { binId: binId, pool: pool.slice(1) };
 }
 
 /* 新建共享组：从池领一个 bin，写映射，推本地数据 */
@@ -6637,19 +6892,28 @@ async function createCloudGroup() {
     let code = genCode();
     let guard = 0;
     while (dir.dir[code] && guard++ < 20) code = genCode();
-    const binId = dir.pool[0];
+
+    const picked = await findReusableBin(dir.pool);
+    const binId = picked.binId;
+
     /* 先认领 bin（写入本机数据），成为共享组的初始内容 */
-    await cloudPutBin(binId, buildPayload());
+    const seed = buildPayload();
+    await cloudPutBin(binId, seed);
     /* 再更新目录：登记 code->binId，并从池中移除 */
     dir.dir[code] = binId;
-    dir.pool = dir.pool.slice(1);
+    dir.pool = picked.pool;
     try {
       await dirWrite(dir);
     } catch (e) {
       toast("登记共享码失败，请重试");
       return;
     }
-    state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: Date.now(), lastRemoteAt: Date.now(), dirty: false };
+    state.sync = normalizeSync({
+      code: code, binId: binId, enabled: true,
+      lastSyncAt: Date.now(), lastRemoteAt: seed.updatedAt, dirty: false,
+      owner: true, mode: 2,
+    });
+    state.sync.base = stampMap(seed.data);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     setCloudBadge();
     renderCloudModal();
@@ -6664,7 +6928,11 @@ async function createCloudGroup() {
   }
 }
 
-/* 加入共享组：查目录 -> 拉云端 -> 按情况应用 */
+/* 加入共享组：查目录 -> 拉云端 -> 按情况合并
+   ★ 必须先建立连接、再弹确认框。
+     反例（曾经的写法）：先 await askConfirm() 再赋值 state.sync —— 用户点确认后，
+     state.sync 已经被随后的表单提交 / 状态刷新覆盖回空值，于是"点了确定却什么都没连上"。
+     现在的顺序：先把 sync 事件落地并落盘，确认框只决定「要不要执行合并动作」。 */
 async function joinCloud(rawCode) {
   if (cloudBusy) return;
   const code = normalizeCode(rawCode);
@@ -6673,44 +6941,87 @@ async function joinCloud(rawCode) {
   cloudBusy = true;
   const btn = document.getElementById("btnCloudJoin");
   if (btn) { btn.disabled = true; btn.textContent = "加入中…"; }
+  /* 连接信息先备好，确认框之后再提交 */
+  let conn = null;
   try {
     /* 连接前先把本机数据整体备份，便于回退 */
     try { localStorage.setItem(STORAGE_KEY + ".pre-join", JSON.stringify(state)); } catch (_) {}
+
     const dir = await dirRead();
     const binId = dir.dir[code];
     if (!binId) { toast("共享码不存在，请核对"); return; }
+
     const cloud = await cloudGetBin(binId);
     const data = (cloud && cloud.data) || {};
     const remoteAt = Number(cloud && cloud.updatedAt) || 0;
-    const remoteEmpty = !data.records && !data.todos && !data.ledger && !data.comps && !data.health;
+    /* ★ 必须用 isEmptyBiz：`!data.records` 对空数组 [] 是 false（空数组是 truthy），
+       云端明明没有任何记录却被判成"非空"，于是走合并分支、本机记录全被丢弃。 */
+    const remoteEmpty = isEmptyBiz(data);
     const localEmpty = isEmptyBiz(state);
+
+    conn = { code: code, binId: binId, remoteAt: remoteAt, data: data };
 
     if (remoteEmpty) {
       /* 云端空：把本机数据推上去，成为共享组内容 */
-      if (!(await askConfirm("这是新的共享组，将把你的本机数据上传共享。继续？"))) return;
-      state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: 0, lastRemoteAt: 0, dirty: false };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      await cloudPutBin(binId, buildPayload());
+      if (!localEmpty) {
+        if (!(await askConfirm("这是新的共享组，将把你的本机数据上传共享。继续？"))) return;
+      }
+    } else if (!localEmpty) {
+      /* 两边都有：合并而不是覆盖，本机已有记录一条都不会丢 */
+      const n = (data.records || []).length + (data.todos || []).length + (data.ledger || []).length;
+      if (!(await askConfirm("云端已有约 " + n + " 条数据。\n加入后会把云端与本机合并（本机记录不会丢），继续？"))) return;
+    }
+
+    /* ---- 用户已确认（或无需确认）：正式建立连接 ----
+       ★ 基线必须取「远端此刻的快照」，不能是空 map。
+         基线 = 「上次双方一致时的状态」。加入时用空基线，会让本机已有记录
+         全被判定为「远端已删除」，下次推送就把它们当删除项同步掉 —— 直接丢数据。
+         云端为空时，基线取「本机快照」等价于双方都还没有记录，同样安全。 */
+    state.sync = normalizeSync({ code: code, binId: binId, enabled: true, lastSyncAt: 0, lastRemoteAt: 0, dirty: false, mode: 2 });
+    /* ★ 基线一律取「云端此刻的快照」（云端为空时就是空 map）。
+       这条规则下：本机有、云端没有 的条目一律判为「本机新增」，会被推送上去；
+       绝不能把「本机快照」当基线 —— 那会让本机自己的记录反过来被判成
+       「云端已删除」，一推送就把自己的数据删掉（实测会丢数据）。 */
+    state.sync.base = stampMap(remoteEmpty ? {} : data);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));   /* 先落盘，防后续操作覆盖 */
+
+    if (remoteEmpty) {
+      const seed = buildPayload();
+      await cloudPutBin(binId, seed);
       state.sync.lastSyncAt = Date.now();
-      state.sync.lastRemoteAt = state.sync.lastSyncAt;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      state.sync.lastRemoteAt = seed.updatedAt;
+      state.sync.base = stampMap(seed.data);
+      toast("已加入，本机数据已上传共享");
     } else if (localEmpty) {
-      /* 本机空、云端有：直接应用云端 */
-      state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: 0, lastRemoteAt: 0, dirty: false };
+      /* 本机空、云端有：整份应用云端 */
       applyCloudData(data, remoteAt);
       toast("已加入，已拉取云端数据");
     } else {
-      /* 两边都有：需确认（会覆盖本机） */
-      const n = (data.records || []).length + (data.todos || []).length + (data.ledger || []).length;
-      if (!(await askConfirm("云端已有约 " + n + " 条数据，加入将用云端覆盖本机数据。\n（本机数据已自动备份，可用「导入备份」恢复）\n确定继续？"))) return;
-      state.sync = { code: code, binId: binId, enabled: true, lastSyncAt: 0, lastRemoteAt: 0, dirty: false };
-      applyCloudData(data, remoteAt);
-      toast("已加入，本机已更新为云端数据");
+      /* 两边都有：合并。
+         ★ normalizeState() 返回的对象里没有 sync 字段，Object.assign 之后
+           state.sync 会变成 undefined，后续 state.sync.base 直接抛错、
+           并被 catch 吞掉 → 表面「加入了」实际没连上。必须先把 sync 快照出来。 */
+      const merged = mergeData(state.sync.base, state, data, false);
+      const uiKeep = state.ui;
+      const syncKeep = Object.assign({}, state.sync);
+      Object.assign(state, normalizeState(merged.data));
+      state.ui = uiKeep;
+      state.sync = normalizeSync(syncKeep);
+      state.sync.base = stampMap(merged.data);
+      state.sync.lastSyncAt = Date.now();
+      state.sync.lastRemoteAt = remoteAt;
+      toast("已加入，合并了云端 " + merged.added + " 条新数据");
+      rerenderAll();
     }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     setCloudBadge();
     renderCloudModal();
     startPolling();
     closeCloud(); /* 加入成功后自动收起弹层，回到正常使用 */
+    /* ★ 加入完成后立刻推一次：把本机多出来的记录补进云端。
+       少了这一步，本机独有的记录要等到「下次有新改动」才会上去，
+       中间另一个设备拉取时看不到它，看起来就像"同步了但数据不对"。 */
+    setTimeout(() => { pushToCloud({ silent: true }); }, 800);
   } catch (e) {
     toast("加入失败：" + (e && e.message ? e.message : "网络错误"));
   } finally {
@@ -6753,13 +7064,19 @@ async function leaveCloud() {
   toast("已断开连接");
 }
 
-/* 手动同步：先推本地改动，再拉云端更新 */
+/* 手动同步：先把云端合并进来，再把合并结果推上去（两边一定一致） */
 async function syncNow() {
   const btn = document.getElementById("btnCloudSyncNow");
   if (btn) { btn.disabled = true; btn.textContent = "同步中…"; }
   try {
-    if (state.sync.dirty) await pushToCloud({ silent: true });
-    const changed = await pullFromCloud({ silent: false, manual: true, force: true });
+    let changed = false;
+    if (state.sync.dirty) {
+      /* 本地有新东西：push 内部会先合并远端再写回，一次到位 */
+      changed = await pushToCloud({ silent: true });
+    } else {
+      changed = await pullFromCloud({ silent: false, manual: true, force: true });
+      if (!changed) changed = await pushToCloud({ silent: true });
+    }
     if (!changed) toast("已是最新");
     renderCloudModal();
   } finally {
