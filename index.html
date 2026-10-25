@@ -6922,14 +6922,20 @@ function mergeData(base, local, remote, pushSide) {
   SYNC_KEYS.forEach(k => {
     const L = Array.isArray(local && local[k]) ? local[k] : [];
     const R = Array.isArray(remote && remote[k]) ? remote[k] : [];
+    /* ★ 身份键：words/places 用 id；ledgerCats 用的是 key（没有 id）。
+       原来一律要求 it.id，导致 ledgerCats 每一条都被 return 掉，
+       云端分类会被合并成空数组（实测 8 个 → 0 个）。 */
+    const ident = (it) => (it && (it.id || it.key || it.name)) || "";
     const seen = new Set();
     const list = [];
-    L.forEach(it => { if (it && it.id && !seen.has(it.id)) { seen.add(it.id); list.push(it); } });
+    L.forEach(it => { const id = ident(it); if (id && !seen.has(id)) { seen.add(id); list.push(it); } });
     R.forEach(it => {
-      if (!it || !it.id) return;
-      if (!seen.has(it.id)) { seen.add(it.id); list.push(it); added++; }
+      const id = ident(it);
+      if (!id || seen.has(id)) return;
+      seen.add(id); list.push(it); added++;
     });
-    out[k] = list;
+    /* 本机有分类但云端没有 → 至少保留本机那份，绝不返回空数组 */
+    out[k] = list.length ? list : L;
   });
 
   /* UI 偏好不入共享，保持本机 */
@@ -6952,6 +6958,29 @@ async function pushToCloud(opts) {
     const latest = await cloudGetBin(state.sync.binId);
     const remoteAt = Number(latest && latest.updatedAt) || 0;
     const remoteData = (latest && latest.data) || {};
+
+    /* ★ 分片保护：云端登记了分片，但这次只读到主 bin（比如刚启动、清单还没同步下来），
+       绝不能拿主 bin 当完整数据去覆盖 —— 那样会把分片里的记录整片冲掉。
+       这里先从目录补齐清单，再逐片读取，拼成完整 remoteData 后再合并。 */
+    try {
+      if (!state.sync.shards || state.sync.shards.length < 2) {
+        const dir = await dirRead();
+        if (dir.shards && dir.shards[state.sync.code] && dir.shards[state.sync.code].length > 1) {
+          const plan = dir.shards[state.sync.code];
+          const all = []; const seenIds = new Set();
+          for (let i = 0; i < plan.length; i++) {
+            const part = i === 0 ? latest : await cloudGetBin(plan[i].binId).catch(() => null);
+            if (!part) continue;
+            const rs = ((part.data || {}).records) || [];
+            rs.forEach(r => { if (r && r.id && !seenIds.has(r.id)) { seenIds.add(r.id); all.push(r); } });
+          }
+          if (all.length > (((remoteData || {}).records) || []).length) {
+            remoteData.records = all;
+            state.sync.shards = plan;
+          }
+        }
+      }
+    } catch (_) {}
 
     /* 防「空覆盖有」：本机业务全空而远端有数据，拒绝推送 */
     if (isEmptyBiz(state) && remoteAt > 0 && !isEmptyBiz(remoteData)) {
