@@ -2792,6 +2792,10 @@ function defaultSync() {
     owner: false,      // 本机是否为「共享组的创建者」
     mode: 2,           // 2 = 合并同步（多设备各记各的）；1 = 旧版整份覆盖
     base: null,        // 合并基线：{ records:{id:ts}, todos:{...}, ... }
+    shardBinId: "",    // 数据超过 100KB 时的第二块 bin
+    shards: null,      // 分片清单 [{binId,from,to}]
+    shardBins: [],     // 所有分片 bin 列表（第 1 片是主 bin）
+    lastError: "",     // 最近一次同步失败的原因（给诊断看）
   };
 }
 
@@ -2878,6 +2882,11 @@ function normalizeSync(v) {
      升级动作放在 pullFromCloud 里做一次「基线初始化」，见 ensureBase()。 */
   d.mode = Number(v.mode) === 1 ? 1 : 2;
   d.base = (v.base && typeof v.base === "object") ? v.base : null;
+  /* ★ 分片信息与错误状态：这是白名单重建，不显式搬过来就会被清掉 */
+  d.shardBinId = typeof v.shardBinId === "string" ? v.shardBinId : "";
+  d.shards = Array.isArray(v.shards) ? v.shards : null;
+  d.shardBins = Array.isArray(v.shardBins) ? v.shardBins : [];
+  d.lastError = typeof v.lastError === "string" ? v.lastError : "";
   return d;
 }
 
@@ -6697,11 +6706,43 @@ function isEmptyBiz(s) {
          !a("comps").length && !a("health").length;
 }
 
-/* 推送到云端的载荷：剥离 sync（sync 是设备本地元数据，不参与共享） */
+/* 精简单条记录：空字符串 / false / 0 一律不写（读回来由 normalizeState 兜默认值） */
+function slimRecord(r) {
+  const o = { id: r.id, ts: Number(r.ts) || 0 };
+  if (r.wordId) o.wordId = r.wordId;
+  if (r.wordText) o.wordText = r.wordText;
+  if (r.color) o.color = r.color;
+  if (r.combo) o.combo = 1;
+  if (r.placeId) o.placeId = r.placeId;
+  if (r.noPlace) o.noPlace = 1;
+  if (r.spanId) o.spanId = r.spanId;
+  return o;
+}
+function slimSpan(sp) {
+  const o = { id: sp.id, title: sp.title, startTs: Number(sp.startTs) || 0 };
+  if (sp.endTs) o.endTs = sp.endTs;
+  if (sp.placeId) o.placeId = sp.placeId;
+  if (sp.noPlace) o.noPlace = 1;
+  return o;
+}
+
+/* 推送到云端的载荷：剥离 sync（sync 是设备本地元数据，不参与共享）
+   ★ 同时做瘦身，否则 600 条以上就会撞 JSONBin 的 100KB 上限。 */
 function toCloudPayload(s) {
   const out = {};
-  Object.keys(s).forEach(k => { if (k !== "sync") out[k] = s[k]; });
+  Object.keys(s).forEach(k => {
+    if (k === "sync") return;
+    if (k === "records") { out.records = (s.records || []).map(slimRecord); return; }
+    if (k === "spans")   { out.spans   = (s.spans   || []).map(slimSpan);   return; }
+    out[k] = s[k];
+  });
   return out;
+}
+
+/* 云端载荷体积（字节）。JSONBin 免费档上限 100KB，留一点余量按 92KB 预警 */
+const CLOUD_LIMIT_BYTES = 100 * 1024;
+function payloadBytes(data) {
+  try { return new TextEncoder().encode(JSON.stringify(data)).length; } catch (_) { return 0; }
 }
 function buildPayload() {
   return { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: toCloudPayload(state) };
@@ -6711,11 +6752,21 @@ function buildPayload() {
 async function dirRead() {
   const res = await cloudFetch(CLOUD.api + "/" + CLOUD.dirBinId + "/latest?meta=false", { cache: "no-store" });
   if (!res.ok) throw new Error("目录读取失败 " + res.status);
-  const d = await res.json();
-  return { v: 1, dir: (d && d.dir) || {}, pool: Array.isArray(d && d.pool) ? d.pool : [], updatedAt: (d && d.updatedAt) || 0 };
+  const d = (await res.json()) || {};
+  /* ★ 必须把 shards（分片清单）一起返回：原来只挑 v/dir/pool，
+     shards 被静默丢掉 → 换了设备永远不知道数据被分成了几片，
+     只能读到主 bin 那一部分（1400 条只拿到 635 条）。 */
+  return {
+    v: 1,
+    dir: d.dir || {},
+    pool: Array.isArray(d.pool) ? d.pool : [],
+    shards: (d.shards && typeof d.shards === "object") ? d.shards : {},
+    updatedAt: d.updatedAt || 0,
+  };
 }
 async function dirWrite(obj) {
   obj.updatedAt = Date.now();
+  if (!obj.shards || typeof obj.shards !== "object") obj.shards = {};   /* 保底，别把别人的清单冲掉 */
   const res = await cloudFetch(CLOUD.api + "/" + CLOUD.dirBinId, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -6725,6 +6776,15 @@ async function dirWrite(obj) {
   return true;
 }
 
+/* ---- 分片清单 ---- */
+/* 返回 [{binId, from, to}]：from/to 是 records 的下标区间（右开）。
+   没有分片记录时返回 null，调用方按老的单 bin 逻辑走。 */
+function shardPlan(sync) {
+  const sh = state.sync && state.sync.shards;
+  if (!Array.isArray(sh) || sh.length < 2) return null;
+  return sh;
+}
+
 /* ---- 数据 bin 读写 ---- */
 async function cloudGetBin(binId) {
   const res = await cloudFetch(CLOUD.api + "/" + binId + "/latest?meta=false", { cache: "no-store" });
@@ -6732,12 +6792,30 @@ async function cloudGetBin(binId) {
   return await res.json();
 }
 async function cloudPutBin(binId, payload) {
+  const body = JSON.stringify(payload);
   const res = await cloudFetch(CLOUD.api + "/" + binId, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: body,
   });
-  if (!res.ok) throw new Error("写入失败 " + res.status);
+  if (!res.ok) {
+    /* ★ 关键：403 最常见的原因不是「没权限」，而是「超过免费档 100KB 上限」。
+       旧代码只抛 "写入失败 403"，又被上层 catch 吞成静默 → 用户什么都看不到。
+       这里把服务端原文带出来，并明确告诉用户是什么问题。 */
+    let detail = "";
+    try { detail = (await res.text()) || ""; } catch (_) {}
+    const kb = Math.round(new TextEncoder().encode(body).length / 1024);
+    if (res.status === 403 && /100\s*kb|over 100|upgrade/i.test(detail)) {
+      const err = new Error("数据超过云存储上限（当前 " + kb + "KB，免费档上限 100KB）。已自动改为分段存储，请再点一次「立即同步」");
+      err.code = "TOO_BIG";
+      err.detail = detail;
+      throw err;
+    }
+    const err = new Error("写入失败 " + res.status + (detail ? "：" + detail.slice(0, 120) : "（当前 " + kb + "KB）"));
+    err.code = "HTTP_" + res.status;
+    err.detail = detail;
+    throw err;
+  }
   return true;
 }
 
@@ -6887,9 +6965,90 @@ async function pushToCloud(opts) {
     const merged = isEmptyBiz(remoteData)
       ? { data: toCloudPayload(state), added: state.records.length, removed: 0 }
       : mergeData(state.sync.base, state, remoteData, true);
-    const payload = { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: merged.data };
+    /* ---- 体积守卫：超限就自动分段，别让用户一直撞 403 还不知道原因 ---- */
+    const SHARD_AT = 92 * 1024;          /* 触发分段的阈值（100KB 留 8KB 余量） */
+    const SHARD_MAX = 90 * 1024;         /* 每片的目标上限 */
+    const bizBytes = payloadBytes(merged.data);
+    let payload;
 
-    await cloudPutBin(state.sync.binId, payload);
+    if (bizBytes > SHARD_AT) {
+      /* ★ 按字节自适应切片（不是按条数对半切 —— 对半切会让每片仍超 100KB）：
+         逐条累加，一片装到 SHARD_MAX 就开下一片。老记录在前，顺序稳定。 */
+      const recs = merged.data.records || [];
+      const shell = Object.assign({}, merged.data, { records: [] });
+      const overhead = payloadBytes(shell);
+
+      const chunks = [];
+      let cur = [], curBytes = overhead;
+      for (const r of recs) {
+        const rb = payloadBytes([r]) - 2;      /* 单条字节数（减掉数组方括号） */
+        if (cur.length && curBytes + rb > SHARD_MAX) { chunks.push(cur); cur = []; curBytes = overhead; }
+        cur.push(r); curBytes += rb;
+      }
+      if (cur.length) chunks.push(cur);
+
+      /* 领够分片 bin：第 1 片用主 bin，其余从目录 pool 领 */
+      const need = chunks.length - 1;
+      let pool = [];
+      if (!state.sync.shardBins || state.sync.shardBins.length < need) {
+        const dir = await dirRead();
+        pool = dir.pool.slice();
+        if (pool.length < need) throw new Error("数据已超过单块上限，需要更多云存储位，但共享位只剩 " + pool.length + " 个");
+        dir.pool = pool.slice(need);
+        await dirWrite(dir);
+        state.sync.shardBins = pool.slice(0, need);
+      }
+      const bins = [state.sync.binId].concat(state.sync.shardBins.slice(0, need));
+
+      /* ★ 先写后面的分片，最后写主 bin。顺序很重要：
+         万一中途失败，主 bin 还是完整的旧数据，不会出现「读到半份」。 */
+      for (let i = chunks.length - 1; i >= 1; i--) {
+        await cloudPutBin(bins[i], {
+          app: "daily-workbench", schema: 2, updatedAt: Date.now(),
+          data: Object.assign({}, merged.data, { records: chunks[i] }),
+        });
+      }
+      payload = {
+        app: "daily-workbench", schema: 2, updatedAt: Date.now(),
+        data: Object.assign({}, merged.data, { records: chunks[0] }),
+      };
+      await cloudPutBin(state.sync.binId, payload);
+
+      /* 记录分片清单（下标区间），读取端按它拼接 */
+      let acc = 0;
+      state.sync.shards = chunks.map((c, i) => {
+        const seg = { binId: bins[i], from: acc, to: acc + c.length };
+        acc += c.length;
+        return seg;
+      });
+      state.sync.shardBinId = bins[1] || "";
+      try {
+        const d2 = await dirRead();
+        d2.shards = d2.shards || {};
+        d2.shards[state.sync.code] = state.sync.shards;
+        await dirWrite(d2);
+      } catch (_) {}
+      if (!opts.silent) toast("数据较多，已自动分成 " + chunks.length + " 块存储（不影响使用）");
+    } else {
+      payload = { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: merged.data };
+      await cloudPutBin(state.sync.binId, payload);
+
+      /* 之前分过片、现在瘦身回一块能装下 → 清掉多余分片 */
+      if (state.sync.shards && state.sync.shards.length > 1) {
+        for (let i = 1; i < state.sync.shards.length; i++) {
+          try {
+            await cloudPutBin(state.sync.shards[i].binId, { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: {} });
+          } catch (_) {}
+        }
+        state.sync.shards = null;
+        state.sync.shardBins = [];
+        state.sync.shardBinId = "";
+        try {
+          const d3 = await dirRead();
+          if (d3.shards && d3.shards[state.sync.code]) { delete d3.shards[state.sync.code]; await dirWrite(d3); }
+        } catch (_) {}
+      }
+    }
 
     if (merged.added || merged.removed) {
       /* 本机数据比云端少了东西（别处新增），同步补进来，界面立刻可见。
@@ -6919,7 +7078,12 @@ async function pushToCloud(opts) {
     if (!opts.silent) toast("已同步到云端");
     return true;
   } catch (e) {
-    if (!opts.silent) toast("同步失败：" + (e && e.message ? e.message : "网络错误"));
+    /* ★ 同步失败必须让用户看见（哪怕 silent 调用），否则就是「点了没反应」。
+       静默只用于后台轮询，但失败仍要落一个可见状态给徽标。 */
+    const msg = e && e.message ? e.message : "网络错误";
+    state.sync.lastError = msg;
+    setCloudBadge();
+    if (!opts.silent || (e && (e.code === "TOO_BIG" || e.code === "HTTP_403"))) toast("同步失败：" + msg);
     return false;
   } finally {
     cloudBusy = false;
@@ -6937,8 +7101,40 @@ async function pullFromCloud(opts) {
   cloudBusy = true;
   setCloudBusy(true);
   try {
+    /* 先问目录：这个共享码是不是分了片（多设备场景下以目录为准） */
+    let shards = state.sync.shards || null;
+    try {
+      const dir = await dirRead();
+      if (dir.shards && dir.shards[state.sync.code]) {
+        shards = dir.shards[state.sync.code];
+        state.sync.shards = shards;
+      }
+    } catch (_) {}
+
     const cloud = await cloudGetBin(state.sync.binId);
     const remoteAt = Number(cloud && cloud.updatedAt) || 0;
+
+    /* ---- 分片合并：把主 bin 与所有分片的 records 拼成完整一份 ---- */
+    if (Array.isArray(shards) && shards.length > 1) {
+      const all = [];
+      const seen = new Set();
+      let lastAt = remoteAt;
+      for (let i = 0; i < shards.length; i++) {
+        let part = null;
+        if (i === 0) part = cloud;
+        else {
+          try { part = await cloudGetBin(shards[i].binId); }
+          catch (e) { part = null; if (!opts.silent) toast("第 " + (i + 1) + " 片读取失败，暂用已读到的部分"); }
+        }
+        if (!part) continue;
+        lastAt = Math.max(lastAt, Number(part.updatedAt) || 0);
+        const rs = ((part.data || {}).records) || [];
+        rs.forEach(r => { if (r && r.id && !seen.has(r.id)) { seen.add(r.id); all.push(r); } });
+      }
+      /* 非 records 的字段以主 bin 为准（words/places/todos 等都在主片里） */
+      cloud.data = Object.assign({}, (cloud.data || {}), { records: all });
+      cloud.updatedAt = lastAt;
+    }
     const data = cloud && cloud.data;
     if (!data || typeof data !== "object") return false;
 
@@ -8013,7 +8209,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v17 · 2026-10-24");
+    add("版本", "v18 · 2026-10-25");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
@@ -8026,11 +8222,22 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       const idx = body.children.length - 1;
       try {
         const cloud = await cloudGetBin(sync.binId);
-        const n = ((cloud && cloud.records) || []).length;
+        /* ★ 修复：cloudGetBin 返回的是 {app, schema, updatedAt, data:{...}}，
+           业务数据在 cloud.data 里。这里原来写成 cloud.records，
+           **永远取不到 → 诊断永远显示「云端 0 条」**，把人往「数据丢了」引。
+           这个 bug 就是「诊断说云端 0 条、其实云端好好的」的真凶。 */
+        const n = (((cloud || {}).data || {}).records || []).length;
         body.children[idx].className = "diag-row ok";
         body.children[idx].querySelector(".v").textContent = "成功，云端 " + n + " 条记录";
         if (n < (state.records || []).length) {
-          add("差异", "本机比云端多 " + ((state.records || []).length - n) + " 条（点「立即同步」补上去）", "warn");
+          /* 体积与分片：超过 100KB 是 JSONBin 免费档的硬上限，必须让人一眼看到 */
+        const kb = Math.round(payloadBytes(toCloudPayload(state)) / 1024);
+        add("数据体积", kb + " KB / 上限 100 KB", kb > 92 ? "warn" : "ok");
+        if (Array.isArray(sync.shards) && sync.shards.length > 1) {
+          add("分片存储", "已分成 " + sync.shards.length + " 块（云端分别存放）", "ok");
+        }
+        if (sync.lastError) add("上次失败", sync.lastError, "bad");
+        add("差异", "本机比云端多 " + ((state.records || []).length - n) + " 条（点「立即同步」补上去）", "warn");
         } else if (n > (state.records || []).length) {
           add("差异", "云端比本机多 " + (n - (state.records || []).length) + " 条（点「立即同步」拉下来）", "warn");
         } else {
