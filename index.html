@@ -992,6 +992,57 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ---------- V3.0 历史记录视图 ---------- */
+/* v19：历史记录搜索 */
+.his-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: -6px 0 14px;
+}
+.his-search .ic {
+  position: absolute; left: 15px;
+  display: grid; place-items: center;
+  color: var(--text-3);
+  pointer-events: none;
+}
+.his-search .ic svg { width: 15px; height: 15px; }
+.his-search input {
+  flex: 1; min-width: 0;
+  height: 40px;
+  padding: 0 38px 0 38px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 13.5px;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+  -webkit-appearance: none;
+}
+.his-search input::placeholder { color: var(--text-3); }
+.his-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--surface);
+}
+.his-search-clear {
+  position: absolute; right: 10px;
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--text-3);
+  background: transparent;
+  transition: background var(--dur) var(--ease), color var(--dur) var(--ease);
+}
+.his-search-clear svg { width: 11px; height: 11px; }
+.his-search-clear:hover { background: var(--surface-softer); color: var(--text); }
+/* 命中高亮：莫兰迪米黄，不用刺眼的黄 */
+.his-row mark, .his-hit mark {
+  background: #F0E4CE;
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+  box-decoration-break: clone;
+}
 .his-day + .his-day { margin-top: 8px; }
 .his-head {
   display: flex;
@@ -1077,6 +1128,10 @@ a { color: inherit; text-decoration: none; }
   .his-row .tl-edit svg, .his-row .tl-del svg { width: 15px !important; height: 15px !important; }
   /* 常显不隐藏：手机上没 hover，藏起来等于找不到 */
   .tl-edit, .tl-place { opacity: .7 !important; }
+  /* ★ v19：删除按钮基础样式是 opacity:0 + 只在 :hover 显形，
+     手机上没有 hover → 永远看不见（虽然点得到）。这里常显，压低一点不抢眼 */
+  .tl-del { opacity: .45 !important; }
+  .tl-del:active { opacity: 1 !important; }
   .his-ops { gap: 2px; }
   /* 期间头部的操作按钮 */
   .span-head .tl-edit, .span-head .tl-del { width: 38px !important; height: 38px !important; }
@@ -2243,6 +2298,14 @@ a { color: inherit; text-decoration: none; }
         </div>
       </header>
       <div class="card">
+        <div class="his-search" role="search">
+          <span class="ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m16.5 16.5 4 4"/></svg></span>
+          <input id="hisSearch" type="text" inputmode="search" autocomplete="off" spellcheck="false"
+                 placeholder="搜索记录、地点、日期…" aria-label="搜索历史记录">
+          <button type="button" class="his-search-clear" id="hisSearchClear" hidden aria-label="清空搜索">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
         <div id="historyList"></div>
       </div>
     </section>
@@ -3035,6 +3098,16 @@ function dayKey(ts) {
   return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
 }
 
+/* ---------- v19：显式日归属 ----------
+   记录可带 day 字段（"YYYY-MM-DD"）：
+   · 有 day  → 归用户指定的那一天（历史页补记 / 改时间时写入）
+   · 没 day  → 按 4 点日界推算（熬夜到凌晨记的自动算前一天）
+   这样「10.16 凌晨 1 点」在记录台自动记 → 算 10.15（熬夜）
+   而在历史页给 10.16 补 → 留在 10.16（用户明确点的就是这一天） */
+function isDayStr(v) { return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v); }
+function recDay(r) { return (r && isDayStr(r.day)) ? r.day : dayKey(r.ts); }
+function itemDay(it) { return it.kind === "rec" ? recDay(it.data) : dayKey(itemTs(it)); }
+
 /* 某个 dayKey 的起止时间戳（凌晨 4 点 —— 次日凌晨 4 点） */
 function dayRange(key) {
   const [y, m, dd] = String(key).split("-").map(Number);
@@ -3230,6 +3303,8 @@ function route() {
   const name = VIEWS.includes(v) ? v : "record";
   document.querySelectorAll(".view").forEach(el => el.classList.toggle("active", el.id === "view-" + name));
   document.querySelectorAll(".nav-item[data-view]").forEach(el => el.classList.toggle("active", el.dataset.view === name));
+  /* v19：当前视图挂在 body 上，搜索框的「/」快捷键靠它判断（只在该视图生效） */
+  document.body.dataset.view = name;
   if (name === "record") { renderTimeline(); renderSpanBar(); backHintCheck(); }
   if (name === "ledger") renderLedger();
   if (name === "history") renderHistory();
@@ -3444,6 +3519,8 @@ function pushRecord(fields) {
   /* 补记模式下，时间点由用户选定；否则取当前时刻 */
   const ts = (isFinite(backTs) && backTs) ? backTs : Date.now();
   const rec = Object.assign({ id: uid(), ts }, fields);
+  /* v19：补记弹层里用户选的日期优先于 4 点日界（把凌晨 1 点的记录钉在今天） */
+  if (isFinite(backTs) && backTs && isDayStr(backDay) && backDay !== dayKey(ts)) rec.day = backDay;
   /* 期间进行中：记录自动归入当前期间（一心多用）；但如果补记到期间开始之前，就不塞进去 */
   const as = activeSpan();
   if (as && ts >= as.startTs) rec.spanId = as.id;
@@ -3452,10 +3529,10 @@ function pushRecord(fields) {
   if (isFinite(backTs) && backTs) { backTs = Math.min(backTs + 60000, Date.now()); backSyncTrigger(); }
   saveState();
   /* 补记到更早的日期：主页只显示当天，这条会进历史记录 */
-  if (dayKey(ts) !== dayKey(Date.now())) {
+  if (recDay(rec) !== dayKey(Date.now())) {
     refreshRecordViews();
-    openHistoryKey = dayKey(ts);
-    toast("已补记到 " + fmtDayLabel(dayKey(ts)) + " " + fmtTime(ts) + "，在历史记录里", "去看看", () => { location.hash = "#/history"; route(); });
+    openHistoryKey = recDay(rec);
+    toast("已补记到 " + fmtDayLabel(recDay(rec)) + " " + fmtTime(ts) + "，在历史记录里", "去看看", () => { location.hash = "#/history"; route(); });
     return rec;
   }
   renderTimeline(rec.id);
@@ -3544,9 +3621,11 @@ noteFormBottom.addEventListener("submit", (e) => {
    ============================================================ */
 const BACK_MODAL_ID = "backModal";
 let backTs = null;
+/* v19：补记弹层里用户点的「日期」。与 4 点日界算出的不同时，新记录会钉在这一天 */
+let backDay = null;
 
 function backHiddenDOM(todayK) {
-  const recs = state.records.filter(r => r.ts && dayKey(r.ts) !== todayK).length;
+  const recs = state.records.filter(r => r.ts && recDay(r) !== todayK).length;
   const todos = state.todos.filter(t => t.createdAt && dayKey(t.createdAt) !== todayK).length;
   return recs + todos;
 }
@@ -3592,6 +3671,7 @@ function closeBackModal() { document.getElementById(BACK_MODAL_ID).hidden = true
 
 function backReset() {
   backTs = null;
+  backDay = null;
   backSyncTrigger();
   backHintCheck();
 }
@@ -3603,18 +3683,20 @@ function backBind() {
   window.__backClose = closeBackModal;
   window.__backReset = backReset;
   const modal = document.getElementById(BACK_MODAL_ID);
-  document.querySelectorAll("[data-back-open]").forEach(btn => btn.addEventListener("click", () => { backAfterSave = null; openBackModal(); }));
+  document.querySelectorAll("[data-back-open]").forEach(btn => btn.addEventListener("click", () => { backAfterSave = null; backDay = null; openBackModal(); }));
   /* 快选：10 分钟前 / 半小时前 / 1 小时前 —— 手机上点两下就补好了 */
   modal.querySelectorAll("[data-back-ago]").forEach(btn => {
     btn.addEventListener("click", () => {
       const ts = Date.now() - Number(btn.dataset.backAgo) * 60000;
       document.getElementById("backDate").value = dayKey(ts);
+      backDay = dayKey(ts);
       const d = new Date(ts);
       document.getElementById("backTime").value = pad(d.getHours()) + ":" + pad(d.getMinutes());
     });
   });
   document.getElementById("backNowBtn").addEventListener("click", () => {
     backTs = null;
+    backDay = null;
     backSyncTrigger();
     backHintCheck();
     closeBackModal();
@@ -3631,8 +3713,9 @@ function backBind() {
     if (ts > Date.now() + 5 * 60000) { toast("不能记到未来的时间"); return; }
     closeBackModal();
     /* 历史页的补记行：只改这一行的时间，不动记录台的补记状态 */
-    if (backAfterSave) { const fn = backAfterSave; backAfterSave = null; fn(ts); return; }
+    if (backAfterSave) { const fn = backAfterSave; backAfterSave = null; fn(ts, dv); return; }
     backTs = ts;
+    backDay = dv;   /* v19：用户点的日期就是归属日 */
     backSyncTrigger();
     backHintCheck();
     const todayK = dayKey(Date.now());
@@ -3937,7 +4020,7 @@ function renderTimeline(flashId) {
 
   const todayK = dayKey(Date.now());
   /* 需求：主页只显示当天的记录；更早的自动归档到「历史记录」 */
-  const todayRecs = state.records.filter(r => dayKey(r.ts) === todayK).length;
+  const todayRecs = state.records.filter(r => recDay(r) === todayK).length;
   const todayTodos = state.todos.filter(t => dayKey(t.createdAt) === todayK).length;
 
   /* 今天有期间（哪怕期间内一条记录都没有）也算有内容，不能落进"今天还没有记录" */
@@ -3951,7 +4034,7 @@ function renderTimeline(flashId) {
     return; /* 底部不再放"去历史记录"的跳转条：容易误触，侧栏已有入口 */
   }
 
-  const items = allItems().filter(it => dayKey(itemTs(it)) === todayK);
+  const items = allItems().filter(it => itemDay(it) === todayK);
   /* 只有期间、没有任何记录/待办时：也要建出今天的日期分组，否则区块无处可挂 */
   if (!items.length) items.push({ kind: "_anchor", data: { ts: Date.now(), createdAt: Date.now() } });
 
@@ -3963,16 +4046,18 @@ function renderTimeline(flashId) {
   const diffMap = {};
   for (let i = 1; i < recs.length; i++) {
     if (!recs[i].ts || !recs[i - 1].ts) continue;
-    if (dayKey(recs[i].ts) !== dayKey(recs[i - 1].ts)) continue; /* 跨天的差不算（主页只显示当天） */
+    if (recDay(recs[i]) !== recDay(recs[i - 1])) continue; /* 跨天的差不算（主页只显示当天） */
     const fromTs = prevAnchorTs(recs[i - 1], recs[i].ts);
     diffMap[recs[i].id] = fmtDiff(recs[i].ts - fromTs);
   }
 
-  /* 日期分组（从早到晚，类似日记） */
+  /* 日期分组（从早到晚，类似日记）。
+     v19：用「归属日」建组 —— 一条 day=今天 的凌晨记录，dayKey 会算出昨天，
+     若用 dayKey 建组，它会在主页挂到「昨天」的分组下面（明明筛的是今天）。 */
   const groups = [];
   let curKey = null, cur = null;
   for (const it of items) {
-    const k = dayKey(itemTs(it));
+    const k = itemDay(it);
     if (k !== curKey) { curKey = k; cur = { key: k, items: [] }; groups.push(cur); }
     cur.items.push(it);
   }
@@ -4492,9 +4577,10 @@ const editModal = document.getElementById("editModal");
 let editCtx = null; /* { kind: "rec" | "todo", id } */
 
 /* 弹层里填时间的小工具：YYYY-MM-DD + HH:MM */
-function setEditTimePair(dateEl, timeEl, ts) {
+function setEditTimePair(dateEl, timeEl, ts, dayOverride) {
   const d = new Date(ts);
-  document.getElementById(dateEl).value = dayKey(ts);
+  /* v19：记录带显式 day 时，日期框要回填那一天，否则打开编辑就变成前一天了 */
+  document.getElementById(dateEl).value = (isDayStr(dayOverride) ? dayOverride : dayKey(ts));
   document.getElementById(timeEl).value = pad(d.getHours()) + ":" + pad(d.getMinutes());
 }
 
@@ -4529,7 +4615,7 @@ function openEdit(kind, id) {
     document.getElementById("editTitle").textContent = "编辑记录";
     document.getElementById("editText").value = r.wordText;
     document.getElementById("editText").maxLength = 60;
-    setEditTimePair("editDate", "editTime", r.ts);
+    setEditTimePair("editDate", "editTime", r.ts, recDay(r));
     /* 普通记录可一键升级为期间，并归入这条记录 */
     toSpanBtn.hidden = false;
     toSpanBtn.textContent = "转为期间（把这条当作期间开始）";
@@ -4579,7 +4665,15 @@ document.getElementById("btnEditSave").addEventListener("click", () => {
   if (ts === null) return;
   if (editCtx.kind === "rec") {
     const r = state.records.find(x => x.id === editCtx.id);
-    if (r) { r.wordText = text; r.ts = ts; }
+    if (r) {
+      r.wordText = text;
+      r.ts = ts;
+      /* v19：弹层里的「日期」= 用户认定的归属日。
+         和 4 点日界算出来的不同（比如凌晨 1 点），就显式记下来，避免又跑回前一天。 */
+      const wantDay = document.getElementById("editDate").value;
+      if (isDayStr(wantDay) && wantDay !== dayKey(ts)) r.day = wantDay;
+      else delete r.day;
+    }
   } else if (editCtx.kind === "span") {
     const sp = state.spans.find(x => x.id === editCtx.id);
     if (sp) {
@@ -5390,33 +5484,159 @@ document.getElementById("btnPasteExtract").addEventListener("click", () => {
    V2 模块五：健康数据
    ============================================================ */
 let openHistoryKey = null; /* 历史里展开着的那一天：改完数据后不收起 */
+/* v19：历史页搜索词。只放内存 —— 切视图再回来还在，刷新页面清空，
+   不写进 localStorage，免得污染同步数据、也不占 100KB 配额。 */
+let histQuery = "";
+
+/* 空格分词，全部命中才算（AND），不区分大小写 */
+function histToks() {
+  return String(histQuery || "").toLowerCase().split(/\s+/).filter(Boolean);
+}
+function isDateTok(t) { return /^\d{4}-\d{1,2}-\d{1,2}$/.test(t) || /^\d{1,2}[-./]\d{1,2}$/.test(t); }
+function isTimeTok(t) { return /^\d{1,2}:\d{2}$/.test(t); }
+
+/* 一条记录/待办参与搜索的全部文本：内容 + 地点 + 期间名 */
+function histText(it) {
+  if (it.kind === "todo") return it.data.text || "";
+  const r = it.data;
+  const bits = [r.wordText || ""];
+  const pl = recPlace(r);
+  if (pl) bits.push(pl.name);
+  if (r.spanId) {
+    const sp = state.spans.find(x => x.id === r.spanId);
+    if (sp) bits.push(sp.title);
+  }
+  return bits.join(" ");
+}
+
+function histMatch(it, toks) {
+  const text = histText(it).toLowerCase();
+  const dk = itemDay(it);
+  const ts = itemTs(it);
+  const hhmm = fmtTime(ts);
+  return toks.every(t => {
+    if (isDateTok(t)) {
+      const n = t.replace(/[./]/g, "-");
+      return dk === n || dk.endsWith("-" + n) || dk.includes(n);
+    }
+    if (isTimeTok(t)) return hhmm === (t.length === 4 ? "0" + t : t);
+    return text.includes(t);
+  });
+}
+
+/* 把命中片段包成 <mark>。纯 DOM 分段，不拼 innerHTML */
+function hlInto(el, text, toks) {
+  const words = toks.filter(t => !isDateTok(t) && !isTimeTok(t));
+  if (!words.length) { el.textContent = text; return; }
+  const low = String(text).toLowerCase();
+  const spans = [];
+  words.forEach(t => {
+    let i = 0;
+    while (i <= low.length) {
+      const p = low.indexOf(t, i);
+      if (p < 0) break;
+      spans.push([p, p + t.length]);
+      i = p + t.length;
+    }
+  });
+  if (!spans.length) { el.textContent = text; return; }
+  spans.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  spans.forEach(sp => {
+    const last = merged[merged.length - 1];
+    if (last && sp[0] <= last[1]) last[1] = Math.max(last[1], sp[1]);
+    else merged.push([sp[0], sp[1]]);
+  });
+  let cur = 0;
+  merged.forEach(([from, to]) => {
+    if (from > cur) el.appendChild(document.createTextNode(String(text).slice(cur, from)));
+    const mk = document.createElement("mark");
+    mk.textContent = String(text).slice(from, to);
+    el.appendChild(mk);
+    cur = to;
+  });
+  if (cur < String(text).length) el.appendChild(document.createTextNode(String(text).slice(cur)));
+}
+
+/* 搜索框绑定：输入即筛（防抖）、Esc 清空、按 / 聚焦 */
+let histSearchTimer = 0;
+function histSyncClear() {
+  const btn = document.getElementById("hisSearchClear");
+  if (btn) btn.hidden = !histQuery;
+}
+function bindHistSearch() {
+  const input = document.getElementById("hisSearch");
+  const clear = document.getElementById("hisSearchClear");
+  if (!input || input.dataset.bound) return;
+  input.dataset.bound = "1";
+  input.addEventListener("input", () => {
+    histQuery = input.value;
+    histSyncClear();
+    clearTimeout(histSearchTimer);
+    histSearchTimer = setTimeout(() => renderHistory(), 120);
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { input.value = ""; histQuery = ""; histSyncClear(); renderHistory(); }
+  });
+  clear.addEventListener("click", () => {
+    input.value = ""; histQuery = ""; histSyncClear(); renderHistory(); input.focus();
+  });
+  /* 全局 / 聚焦：只在历史视图、且当前没在输入框里时生效 */
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (document.body.dataset.view !== "history") return;
+    const tag = (e.target.tagName || "").toUpperCase();
+    if (tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable) return;
+    e.preventDefault();
+    input.focus();
+  });
+}
 
 function renderHistory() {
   const listEl = document.getElementById("historyList");
   const countEl = document.getElementById("historyCount");
   listEl.innerHTML = "";
+  bindHistSearch();
 
-  const items = allItems();
-  if (!items.length) {
+  const toks = histToks();
+  const searching = toks.length > 0;
+  const all = allItems();
+  if (!all.length) {
     countEl.textContent = "";
     listEl.appendChild(emptyState("还没有历史记录", "在记录台记下第一条日程"));
     return;
   }
 
-  /* 日期分组（正序建组，倒序渲染：最近在上） */
-  const groups = [];
-  let curKey = null, cur = null;
-  for (const it of items) {
-    const k = dayKey(itemTs(it));
-    if (k !== curKey) { curKey = k; cur = { key: k, items: [] }; groups.push(cur); }
-    cur.items.push(it);
+  const items = searching ? all.filter(it => histMatch(it, toks)) : all;
+  if (!items.length) {
+    countEl.textContent = "0 条命中";
+    listEl.appendChild(emptyState("没有匹配的记录", "换个词试试，或搜 10-16 这样的日期"));
+    return;
   }
-  countEl.textContent = groups.length + " 天";
 
-  /* 每条记录与「上一条记录」的时长差（跨天也连续，与记录台口径一致） */
+  /* 日期分组：按「归属日」聚合后正序排。
+     ★ v19：记录可带显式 day（凌晨 1 点钉在用户点的那一天），
+       此时全局按 ts 排的顺序和日期顺序不再一致，顺序扫描会把同一天切成两段，
+       所以先 Map 聚合，再按日期键排序。 */
+  const byDay = new Map();
+  for (const it of items) {
+    const k = itemDay(it);
+    let arr = byDay.get(k);
+    if (!arr) { arr = []; byDay.set(k, arr); }
+    arr.push(it);
+  }
+  const groups = [...byDay.keys()].sort().map(k => ({ key: k, items: byDay.get(k) }));
+  countEl.textContent = searching
+    ? (items.length + " 条命中 · " + groups.length + " 天")
+    : (groups.length + " 天");
+
+  /* 每条记录与「上一条记录」的时长差。
+     v19：跨天不算 —— 否则凌晨那栏会显示「距昨天下午 11 小时 30 分」这种没意义的大数，
+     口径与记录台保持一致。 */
   const recsSorted = [...state.records].sort((a, b) => a.ts - b.ts);
   const histDiff = {};
   for (let i = 1; i < recsSorted.length; i++) {
+    if (recDay(recsSorted[i]) !== recDay(recsSorted[i - 1])) continue;
     histDiff[recsSorted[i].id] = fmtDiff(recsSorted[i].ts - recsSorted[i - 1].ts);
   }
 
@@ -5424,6 +5644,7 @@ function renderHistory() {
     const g = groups[gi];
     const day = document.createElement("div");
     day.className = "his-day";
+    day.dataset.k = g.key;   /* v19：分组日期挂到 DOM 上，测试和定位都用得上 */
 
     const head = document.createElement("button");
     head.type = "button";
@@ -5456,6 +5677,8 @@ function renderHistory() {
     const todoCount2 = g.items.length - recCount;
     const preview = g.items.slice(0, 3).map(x => fmtTime(itemTs(x)) + " " + (x.kind === "rec" ? x.data.wordText : x.data.text)).join(" · ");
     sum.textContent = preview + (g.items.length > 3 ? " …等 " + g.items.length + " 条（记录 " + recCount + " · 待办 " + todoCount2 + "）" : "");
+    /* 搜索时明细已经全部展开，预览行是重复信息，收起来更清爽 */
+    if (searching) sum.hidden = true;
 
     const body = document.createElement("div");
     body.className = "his-body";
@@ -5530,7 +5753,9 @@ function renderHistory() {
 
       const w = document.createElement("span");
       w.className = "w";
-      w.textContent = it.kind === "rec" ? it.data.wordText : it.data.text;
+      const rawText = it.kind === "rec" ? it.data.wordText : it.data.text;
+      if (searching) hlInto(w, rawText, toks);
+      else w.textContent = rawText;
 
       row.append(t, w);
 
@@ -5598,6 +5823,7 @@ function renderHistory() {
     addTime.className = "clock-btn his-clock";
     const lastTs = g.items.reduce((m, x) => Math.max(m, itemTs(x)), 0);
     let addAt = new Date(lastTs + 60000);
+    /* 顺手补的时间若已经跨出这一天（含 4 点日界），落到这天中午，避免默认值就跑到隔壁天 */
     if (dayKey(addAt.getTime()) !== g.key) addAt = new Date(g.key + "T12:00:00");
     addTime.textContent = fmtTime(addAt.getTime());
     addTime.title = "这条记录的时间点，点一下可改";
@@ -5605,19 +5831,26 @@ function renderHistory() {
     addTime.addEventListener("click", () => {
       openBackModal(addAt.getTime());
       /* 选完时间后写回这条补记行 */
-      backAfterSave = (ts) => { addAt = new Date(ts); refreshAddTime(); };
+      backAfterSave = (ts, dv) => {
+        addAt = new Date(ts);
+        /* v19：把用户选的日期记在补记行上（凌晨 1 点 + 选 10.16 → 归 10.16） */
+        addForm.dataset.day = (isDayStr(dv) && dv !== dayKey(ts)) ? dv : "";
+        refreshAddTime();
+      };
     });
     const addInput = document.createElement("input");
     addInput.className = "pill-input";
     addInput.type = "text";
     addInput.maxLength = 60;
-    addInput.placeholder = "补记这一天的事…，回车保存";
+    addInput.placeholder = "补记这一天…（回车保存）";
     const addBtn = document.createElement("button");
     addBtn.type = "submit";
     addBtn.className = "add-btn his-add-btn";
     addBtn.setAttribute("aria-label", "保存到这一天");
     addBtn.textContent = "+";
     addForm.append(addTime, addInput, addBtn);
+    /* 搜索态下不显示补记行：正在找东西的时候不该能顺手加一条 */
+    if (searching) addForm.hidden = true;
     addForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const text = addInput.value.trim();
@@ -5630,6 +5863,10 @@ function renderHistory() {
         这里只落一条记录，归到这一天（期间归属按时间窗判断）。
       */
       const rec = { id: uid(), ts, wordId: "", wordText: text, color: MORANDI[0].hex };
+      /* v19：这条是给「这一天」补的。凌晨 1 点也钉在这一天，不跑到前一天去 */
+      const chosenDay = addForm.dataset.day;
+      if (isDayStr(chosenDay)) rec.day = chosenDay;
+      else if (dayKey(ts) !== g.key) rec.day = g.key;
       const spHere = state.spans.find(x => ts >= x.startTs && (!x.endTs || ts <= x.endTs));
       if (spHere) rec.spanId = spHere.id;
       state.records.push(rec);
@@ -5643,11 +5880,13 @@ function renderHistory() {
       toast("已补记到 " + dateLabelParts(g.key).full + " " + fmtTime(ts));
     });
 
-    /* 展开/收起：点日期条切换；首次进入如果还开着，保持原样 */
-    if (openHistoryKey === g.key) day.classList.add("open");
+    /* 展开/收起：点日期条切换；首次进入如果还开着，保持原样。
+       搜索时命中天一律展开 —— 不展开就看不到命中的是哪一条 */
+    if (searching || openHistoryKey === g.key) day.classList.add("open");
     head.addEventListener("click", () => {
       day.classList.toggle("open");
-      openHistoryKey = day.classList.contains("open") ? g.key : null;
+      /* 搜索态下每组是否展开由搜索结果决定，不记住点击，免得下次搜索全收起 */
+      if (!searching) openHistoryKey = day.classList.contains("open") ? g.key : null;
     });
     day.append(head, sum, body, addForm);
     listEl.appendChild(day);
@@ -6716,6 +6955,7 @@ function slimRecord(r) {
   if (r.placeId) o.placeId = r.placeId;
   if (r.noPlace) o.noPlace = 1;
   if (r.spanId) o.spanId = r.spanId;
+  if (r.day) o.day = r.day;   /* v19：显式归属日 */
   return o;
 }
 function slimSpan(sp) {
@@ -8238,7 +8478,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v18 · 2026-10-25");
+    add("版本", "v19 · 2026-10-27");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
