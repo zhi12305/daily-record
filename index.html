@@ -7279,7 +7279,7 @@ async function pushToCloud(opts) {
       }
       payload = {
         app: "daily-workbench", schema: 2, updatedAt: Date.now(),
-        data: Object.assign({}, merged.data, { records: chunks[0] }),
+        data: Object.assign({}, merged.data, { records: chunks[0], _all: false }),
       };
       await cloudPutBin(state.sync.binId, payload);
 
@@ -7299,22 +7299,44 @@ async function pushToCloud(opts) {
       } catch (_) {}
       if (!opts.silent) toast("数据较多，已自动分成 " + chunks.length + " 块存储（不影响使用）");
     } else {
-      payload = { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: merged.data };
+      /* ★ v20：给主 bin 打「我已含全部记录」的显式标记。
+         否则「主 bin 是全量但目录计划过期」与「主 bin 只是第 1 片」从数据上无法区分，
+         删掉的记录会被旧分片拼回来。 */
+      payload = { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: Object.assign({}, merged.data, { _all: true }) };
       await cloudPutBin(state.sync.binId, payload);
 
-      /* 之前分过片、现在瘦身回一块能装下 → 清掉多余分片 */
-      if (state.sync.shards && state.sync.shards.length > 1) {
-        for (let i = 1; i < state.sync.shards.length; i++) {
+      /* 之前分过片、现在瘦身回一块能装下 → 清掉多余分片。
+         ★ v20：本地可能根本没有 shards 记录（新装 App、或导入的备份里没有），
+           但目录里还留着旧计划，旧分片里仍是老数据。不清理的话，
+           下次 pull 会把「主 bin 已删除」的旧记录拼回来（删掉的记录复活）。
+           所以这里不能只看 state.sync.shards，必须无条件问一次目录。 */
+      let plan0 = (state.sync.shards && state.sync.shards.length > 1) ? state.sync.shards : null;
+      let dirCached = null;
+      try {
+        dirCached = await dirRead();
+        const dp = dirCached.shards && dirCached.shards[state.sync.code];
+        if (Array.isArray(dp) && dp.length > 1) plan0 = dp;
+      } catch (_) {}
+      if (plan0 && plan0.length > 1) {
+        const freed = [];
+        for (let i = 1; i < plan0.length; i++) {
+          const bid = plan0[i] && plan0[i].binId;
+          if (!bid || bid === state.sync.binId) continue;
           try {
-            await cloudPutBin(state.sync.shards[i].binId, { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: {} });
+            await cloudPutBin(bid, { app: "daily-workbench", schema: 2, updatedAt: Date.now(), data: {} });
+            freed.push(bid);
           } catch (_) {}
         }
         state.sync.shards = null;
         state.sync.shardBins = [];
         state.sync.shardBinId = "";
         try {
-          const d3 = await dirRead();
-          if (d3.shards && d3.shards[state.sync.code]) { delete d3.shards[state.sync.code]; await dirWrite(d3); }
+          const d3 = dirCached || await dirRead();
+          d3.shards = d3.shards || {};
+          delete d3.shards[state.sync.code];
+          /* 清空的存储位退回池子，别白白占着（免费档位子很紧） */
+          if (freed.length) d3.pool = (d3.pool || []).concat(freed);
+          await dirWrite(d3);
         } catch (_) {}
       }
     }
@@ -7383,8 +7405,19 @@ async function pullFromCloud(opts) {
     const cloud = await cloudGetBin(state.sync.binId);
     const remoteAt = Number(cloud && cloud.updatedAt) || 0;
 
-    /* ---- 分片合并：把主 bin 与所有分片的 records 拼成完整一份 ---- */
-    if (Array.isArray(shards) && shards.length > 1) {
+    /* ---- 分片合并：把主 bin 与所有分片的 records 拼成完整一份 ----
+       ★ v20：先判断主 bin 是不是已经装了全部（mainN >= 计划总数）。
+         如果是，就不能再拼接分片 —— 分片里可能还留着「主 bin 已删除」的旧记录，
+         拼回去会让删掉的记录复活。 */
+    const mainN = (((cloud || {}).data || {}).records || []).length;
+    const mainFull = !!(cloud && cloud.data && cloud.data._all === true);
+    const planTotal = (Array.isArray(shards) && shards.length) ? (Number(shards[shards.length - 1].to) || 0) : 0;
+    const needShards = Array.isArray(shards) && shards.length > 1 && !mainFull && mainN < planTotal;
+    if (!needShards && Array.isArray(shards) && shards.length > 1) {
+      /* 主 bin 已全量：旧计划作废（不主动删云端目录，push 成功后会清） */
+      state.sync.shards = null;
+    }
+    if (needShards) {
       const all = [];
       const seen = new Set();
       let lastAt = remoteAt;
@@ -8478,7 +8511,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v19 · 2026-10-27");
+    add("版本", "v20 · 2026-10-27");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
@@ -8495,9 +8528,35 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
            业务数据在 cloud.data 里。这里原来写成 cloud.records，
            **永远取不到 → 诊断永远显示「云端 0 条」**，把人往「数据丢了」引。
            这个 bug 就是「诊断说云端 0 条、其实云端好好的」的真凶。 */
-        const n = (((cloud || {}).data || {}).records || []).length;
+        /* ★ v20：分片模式下主 bin 只是第 1 片，只数它会得出假结论 ——
+           本机 784 条时误报「比云端多 371」，本机 413 条时又误报「两边一致」。
+           必须按目录里的计划逐片累计。 */
+        let n = (((cloud || {}).data || {}).records || []).length;
+        let shardPlan = Array.isArray(sync.shards) ? sync.shards : null;
+        let cloudParts = 1;
+        try {
+          const d0 = await dirRead();
+          const dp = d0.shards && d0.shards[sync.code];
+          if (Array.isArray(dp) && dp.length > 1) shardPlan = dp;
+        } catch (_) {}
+        const planTotal2 = (Array.isArray(shardPlan) && shardPlan.length) ? (Number(shardPlan[shardPlan.length - 1].to) || 0) : 0;
+        const mainFull2 = !!(cloud && cloud.data && cloud.data._all === true);
+        if (Array.isArray(shardPlan) && shardPlan.length > 1 && !mainFull2 && n < planTotal2) {
+          const seenIds = new Set(((((cloud || {}).data) || {}).records || []).map(r => r && r.id));
+          for (let i = 1; i < shardPlan.length; i++) {
+            const bid = shardPlan[i] && shardPlan[i].binId;
+            if (!bid) continue;
+            try {
+              const part = await cloudGetBin(bid);
+              const rs = (((part || {}).data) || {}).records || [];
+              rs.forEach(r => { if (r && r.id && !seenIds.has(r.id)) { seenIds.add(r.id); n++; } });
+              cloudParts++;
+            } catch (_) {}
+          }
+        }
+        if (state.sync) state.sync.shards = (Array.isArray(shardPlan) && shardPlan.length > 1 && n < planTotal2) ? shardPlan : (state.sync.shards || null);
         body.children[idx].className = "diag-row ok";
-        body.children[idx].querySelector(".v").textContent = "成功，云端 " + n + " 条记录";
+        body.children[idx].querySelector(".v").textContent = "成功，云端 " + n + " 条记录" + (cloudParts > 1 ? "（含 " + cloudParts + " 块分片）" : "");
         if (n < (state.records || []).length) {
           /* 体积与分片：超过 100KB 是 JSONBin 免费档的硬上限，必须让人一眼看到 */
         const kb = Math.round(payloadBytes(toCloudPayload(state)) / 1024);
