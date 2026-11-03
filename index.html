@@ -3106,7 +3106,9 @@ function dayKey(ts) {
    而在历史页给 10.16 补 → 留在 10.16（用户明确点的就是这一天） */
 function isDayStr(v) { return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v); }
 function recDay(r) { return (r && isDayStr(r.day)) ? r.day : dayKey(r.ts); }
-function itemDay(it) { return it.kind === "rec" ? recDay(it.data) : dayKey(itemTs(it)); }
+/* v21：历史页的「补记行」（一条临时输入行）跟随它所在的那一天，
+   不能因为它内部是 0 点时间戳就把它分到前一天去。 */
+function itemDay(it) { return it.kind === "rec" ? recDay(it.data) : (it.kind === "hisday" ? it.day : dayKey(itemTs(it))); }
 
 /* 某个 dayKey 的起止时间戳（凌晨 4 点 —— 次日凌晨 4 点） */
 function dayRange(key) {
@@ -3662,7 +3664,10 @@ function openBackModal(seed) {
   const base = (isFinite(seed) && seed) ? seed : (backTs || Date.now());
   backTs = backTs || Date.now();
   const d = new Date(base);
-  document.getElementById("backDate").value = dayKey(base);
+  /* ★ v21：已有明确归属日时（从历史页 11.1 点进来），日期框就显示 11.1，
+     不能被 4 点日界改写成 10.31 —— 否则用户点开一看日期是 10.31，
+     时间还没改就点确定，就用 10.31 覆盖掉了本来正确的归属。 */
+  document.getElementById("backDate").value = (isDayStr(backDay) ? backDay : dayKey(base));
   document.getElementById("backTime").value = pad(d.getHours()) + ":" + pad(d.getMinutes());
   document.getElementById(BACK_MODAL_ID).hidden = false;
 }
@@ -5824,17 +5829,30 @@ function renderHistory() {
     const lastTs = g.items.reduce((m, x) => Math.max(m, itemTs(x)), 0);
     let addAt = new Date(lastTs + 60000);
     /* 顺手补的时间若已经跨出这一天（含 4 点日界），落到这天中午，避免默认值就跑到隔壁天 */
-    if (dayKey(addAt.getTime()) !== g.key) addAt = new Date(g.key + "T12:00:00");
-    addTime.textContent = fmtTime(addAt.getTime());
-    addTime.title = "这条记录的时间点，点一下可改";
-    const refreshAddTime = () => { addTime.textContent = fmtTime(addAt.getTime()); };
+    if (recDay({ ts: addAt.getTime() }) !== g.key) addAt = new Date(g.key + "T12:00:00");
+    /* ★ v21：「正在给哪一天补记」从第一秒就是明确的 g.key。
+       以前这里默认留空，等用户点时间弹层才写进去；不点弹层直接输入的话，
+       就退回 4 点日界去猜 —— 11.1 补凌晨 1 点被判成 10.31，正是这么来的。
+       现在这一行永远钉在 g.key 这一天，用户改时间也只在「这一天内部」改。 */
+    addForm.dataset.day = g.key;
+    const refreshAddTime = () => {
+      addTime.textContent = fmtTime(addAt.getTime());
+      /* 凌晨/深夜时段提示一下，避免「看着像昨天」的误会 */
+      const hh = addAt.getHours();
+      addTime.title = (hh < DAY_START_HOUR)
+        ? "这条算在 " + g.key + "（凌晨 " + pad(hh) + " 点也归这一天），点一下可改"
+        : "这条记录的时间点，点一下可改";
+    };
+    refreshAddTime();
     addTime.addEventListener("click", () => {
+      /* 打开弹层前先把归属日钉成这一天，弹层里的日期框才会显示 11.1 而不是 10.31 */
+      backDay = g.key;
       openBackModal(addAt.getTime());
       /* 选完时间后写回这条补记行 */
       backAfterSave = (ts, dv) => {
         addAt = new Date(ts);
-        /* v19：把用户选的日期记在补记行上（凌晨 1 点 + 选 10.16 → 归 10.16） */
-        addForm.dataset.day = (isDayStr(dv) && dv !== dayKey(ts)) ? dv : "";
+        /* 用户若把日期改成别的日子，就跟着换成那天；默认仍是这一天 */
+        addForm.dataset.day = isDayStr(dv) ? dv : g.key;
         refreshAddTime();
       };
     });
@@ -5863,10 +5881,10 @@ function renderHistory() {
         这里只落一条记录，归到这一天（期间归属按时间窗判断）。
       */
       const rec = { id: uid(), ts, wordId: "", wordText: text, color: MORANDI[0].hex };
-      /* v19：这条是给「这一天」补的。凌晨 1 点也钉在这一天，不跑到前一天去 */
+      /* v21：这条是给「这一天」补的，无条件钉在这一天。
+         凌晨 1 点也留在 11.1，绝不按 4 点日界挪到 10.31。 */
       const chosenDay = addForm.dataset.day;
-      if (isDayStr(chosenDay)) rec.day = chosenDay;
-      else if (dayKey(ts) !== g.key) rec.day = g.key;
+      rec.day = isDayStr(chosenDay) ? chosenDay : g.key;
       const spHere = state.spans.find(x => ts >= x.startTs && (!x.endTs || ts <= x.endTs));
       if (spHere) rec.spanId = spHere.id;
       state.records.push(rec);
@@ -8511,7 +8529,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v20 · 2026-10-27");
+    add("版本", "v21 · 2026-11-03");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
