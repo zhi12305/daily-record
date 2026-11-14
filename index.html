@@ -2152,6 +2152,107 @@ a { color: inherit; text-decoration: none; }
 .h-row .ops svg { width: 12px; height: 12px; }
 @media (hover: none) { .h-row .ops button { opacity: .55; } }
 
+
+/* ============================================================
+   v22-1：记录台「今日睡眠」快捷卡
+   —— 睡眠是每天最容易忘的一项，放记录台最上面，打开就看见。
+      午睡单独一行，可不填；不并入睡眠时长（睡 7h + 午睡 30min
+      不等于睡了 7.5h）。
+   ============================================================ */
+.sleep-quick {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 13px 14px 12px;
+  margin-bottom: 13px;
+  border-radius: 16px;
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+}
+.sq-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.sq-title {
+  flex: none;
+  font-size: 19px;
+  font-weight: 720;
+  letter-spacing: .02em;
+  color: var(--text);
+  line-height: 1.2;
+}
+.sq-title-sm { flex: none; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.sq-inputs { display: flex; align-items: center; gap: 4px; flex: none; }
+.sq-num {
+  width: 46px; height: 30px;
+  padding: 0 6px;
+  font-size: 15px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--text);
+  background: #FFFFFF;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: none;
+  transition: border-color var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.sq-num:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(169, 188, 166, .18); }
+.sq-num::placeholder { font-weight: 400; color: var(--text-3); opacity: .7; }
+.sq-num::-webkit-outer-spin-button,
+.sq-num::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sq-num[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.sq-u { flex: none; font-size: 12px; color: var(--text-3); }
+.sq-tip { flex: none; margin-left: 2px; font-size: 11px; color: var(--text-3); opacity: .8; }
+.sq-state { flex: none; margin-left: auto; font-size: 11.5px; color: var(--text-3); }
+.sq-state.on { color: var(--accent-deep); }
+
+/* ============================================================
+   v22-2：滚过一屏出现的「回首页」悬浮按钮
+   ============================================================ */
+.to-top {
+  position: fixed;
+  right: 20px;
+  bottom: 26px;
+  z-index: 55;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  padding: 0 14px 0 11px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--text);
+  background: #FFFFFF;
+  border: 1px solid #E2DCD3;
+  box-shadow: 0 4px 14px rgba(61, 58, 54, .16);
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px) scale(.96);
+  transition: opacity 220ms var(--ease), transform 220ms var(--ease), visibility 220ms var(--ease);
+}
+.to-top svg { width: 15px; height: 15px; flex: none; }
+.to-top.show { opacity: 1; visibility: visible; transform: none; }
+.to-top:active { transform: scale(.95); }
+/* 桌面端：卡片更宽，输入框和字号跟着放大，别让两行元素挤在左边一小坨 */
+@media (min-width: 901px) {
+  .sleep-quick { padding: 16px 18px 15px; gap: 9px; }
+  .sq-row { gap: 9px; }
+  .sq-title { font-size: 21px; }
+  .sq-inputs { gap: 6px; }
+  .sq-num { width: 56px; height: 34px; font-size: 16px; }
+  .sq-u { font-size: 13px; }
+  .sq-title-sm { font-size: 14px; }
+  .sq-tip { font-size: 12px; }
+}
+@media (max-width: 900px) {
+  .to-top { right: 14px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+}
+@media (max-width: 560px) {
+  .sq-title { font-size: 17.5px; }
+  .sq-num { width: 42px; height: 29px; }
+  .sq-state { font-size: 11px; }
+  .to-top { height: 38px; padding: 0 12px 0 10px; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
@@ -2254,6 +2355,27 @@ a { color: inherit; text-decoration: none; }
         </div>
       </header>
       <div class="card">
+        <!-- v22：今日睡眠（首行大字，填完自动并进健康数据当天那条） -->
+        <form class="sleep-quick" id="sleepQuick" autocomplete="off" aria-label="今日睡眠快捷记录">
+          <div class="sq-row">
+            <label class="sq-title" for="sqSleepH">今日睡眠</label>
+            <div class="sq-inputs">
+              <input class="sq-num" id="sqSleepH" type="number" min="0" max="24" step="1" inputmode="numeric" placeholder="" aria-label="睡眠几小时">
+              <span class="sq-u">小时</span>
+              <input class="sq-num" id="sqSleepM" type="number" min="0" max="59" step="1" inputmode="numeric" placeholder="" aria-label="睡眠几分钟">
+              <span class="sq-u">分</span>
+            </div>
+            <span class="sq-state" id="sqState" aria-live="polite"></span>
+          </div>
+          <div class="sq-row sub">
+            <label class="sq-title-sm" for="sqNap">午睡</label>
+            <div class="sq-inputs">
+              <input class="sq-num" id="sqNap" type="number" min="0" max="720" step="1" inputmode="numeric" placeholder="" aria-label="午睡几分钟">
+              <span class="sq-u">分钟</span>
+              <span class="sq-tip">没午睡就留空</span>
+            </div>
+          </div>
+        </form>
         <div class="word-row" id="wordRow"></div>
         <div class="combo-bar" id="comboBar" hidden>
           <div class="combo-chips" id="comboChips"></div>
@@ -2802,6 +2924,12 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
+<!-- v22：滚过一屏才出现，点一下回首页顶部 -->
+<button class="to-top" id="btnToTop" type="button" aria-label="回到首页顶部" aria-hidden="true" tabindex="-1" title="回到首页">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
+  <span>回首页</span>
+</button>
+
 <div class="toast" id="toast" role="status"></div>
 <input type="file" id="fileImport" accept=".json,application/json" hidden>
 
@@ -3303,10 +3431,15 @@ const VIEWS = ["record", "history", "ledger", "todo", "comps", "health"];
 function route() {
   const v = (location.hash || "").replace(/^#\/?/, "");
   const name = VIEWS.includes(v) ? v : "record";
+  /* v22：换页时如果还停在上一页的滚动位置，新页面会像「一片空白」 */
+  const prevView = document.body.dataset.view || "";
   document.querySelectorAll(".view").forEach(el => el.classList.toggle("active", el.id === "view-" + name));
   document.querySelectorAll(".nav-item[data-view]").forEach(el => el.classList.toggle("active", el.dataset.view === name));
   /* v19：当前视图挂在 body 上，搜索框的「/」快捷键靠它判断（只在该视图生效） */
   document.body.dataset.view = name;
+  if (prevView && prevView !== name) window.scrollTo(0, 0);
+  /* v22：跨过 4 点还停在首页时，睡眠卡要换成新的一天 */
+  if (name === "record" && typeof renderSleepQuick === "function" && sqDay !== sqToday()) renderSleepQuick();
   if (name === "record") { renderTimeline(); renderSpanBar(); backHintCheck(); }
   if (name === "ledger") renderLedger();
   if (name === "history") renderHistory();
@@ -3350,6 +3483,7 @@ function tickClock() {
     lastDayKey = dayKey(Date.now());
     backReset(); /* 跨天：补记状态清掉，避免把前一天的记录拖到今天 */
     if (typeof renderTimeline === "function") renderTimeline(); /* 新的一天：主页切到空白的今天 */
+    if (typeof renderSleepQuick === "function") renderSleepQuick(); /* 睡眠卡也换到新的一天 */
     if (typeof renderHistory === "function") renderHistory();
   }
 }
@@ -6366,11 +6500,14 @@ function fmtDur(min) {
   return rm ? h + " 小时 " + rm + " 分" : h + " 小时";
 }
 
-/* 最近 N 天（含今天）的日期 key，早 → 晚 */
+/* 最近 N 天（含今天）的日期 key，早 → 晚
+   ★ v22：原来用「今天 0 点」往前推，但 dayKey 是 4 点日界 ——
+     今天 0 点会被算成昨天，于是「最近 7 天」永远差一天、永远不含今天，
+     记录台刚填的今日睡眠在健康页周报里看不到。改成从「今天 12 点」推。 */
 function lastNDays(n) {
   const days = [];
-  const t = new Date(); t.setHours(0, 0, 0, 0);
-  for (let i = n - 1; i >= 0; i--) days.push(dayKey(t.getTime() - i * 86400000));
+  const base = new Date(dayKey(Date.now()) + "T12:00:00").getTime();
+  for (let i = n - 1; i >= 0; i--) days.push(dayKey(base - i * 86400000));
   return days;
 }
 
@@ -6596,6 +6733,148 @@ function deleteHealth(id) {
       renderHealth();
     }, "这条健康记录");
   }
+}
+
+/* ============================================================
+   v22：记录台「今日睡眠」快捷卡
+   ------------------------------------------------------------
+   放在记录台首行，是为了「打开就看见」——睡眠是每天最容易忘的一项。
+   填完自动写进「健康数据」当天那条，健康页的周报 / 柱状图跟着更新，
+   不用再跳到健康页补录。
+
+   口径（和全站一致）：
+   · 日期用 dayKey()，凌晨 4 点前算前一天；
+   · 午睡单独存 nap 字段，**不并入睡眠时长**（睡 7h + 午睡 30min
+     不等于睡了 7.5h，健康页的睡眠均值也不该被午睡拉高）；
+   · 只写非空项：输入框留空不改动已有数据，避免手滑把睡眠删了；
+     真要删改去健康数据页，那里有明确的编辑 / 删除按钮。
+   ============================================================ */
+const sqForm  = document.getElementById("sleepQuick");
+const sqH     = document.getElementById("sqSleepH");
+const sqM     = document.getElementById("sqSleepM");
+const sqNap   = document.getElementById("sqNap");
+const sqState = document.getElementById("sqState");
+let sqDay = "";      /* 这张卡当前绑定的是哪一天 */
+let sqTimer = 0;     /* 输入防抖：停下来 0.8 秒才落库，别每敲一个字就存一次 */
+
+function sqToday() { return dayKey(Date.now()); }
+
+function sqReadForm() {
+  const sh  = parseInt(sqH.value, 10);
+  const sm  = parseInt(sqM.value, 10);
+  const nap = parseInt(sqNap.value, 10);
+  const sleep = (isFinite(sh) || isFinite(sm)) ? (isFinite(sh) ? sh : 0) * 60 + (isFinite(sm) ? sm : 0) : null;
+  return {
+    sleep: sleep === null ? null : clampNum(sleep, 0, 1440),
+    nap: isFinite(nap) ? clampNum(nap, 0, 720) : null,
+  };
+}
+
+function sqPaint(h) {
+  const has = !!(h && (h.sleep || h.nap));
+  /* 时长已经在输入框里了，这里只做「这条确实进了健康数据」的确认，不重复念一遍 */
+  sqState.textContent = has ? "✓ 已记入健康" : "";
+  sqState.classList.toggle("on", has);
+}
+
+function renderSleepQuick() {
+  sqDay = sqToday();
+  const h = findHealthByDate(sqDay);
+  sqH.value   = h && h.sleep && Math.floor(h.sleep / 60) ? String(Math.floor(h.sleep / 60)) : "";
+  sqM.value   = h && h.sleep && h.sleep % 60 ? String(h.sleep % 60) : "";
+  sqNap.value = h && h.nap ? String(h.nap) : "";
+  sqPaint(h);
+}
+
+function sleepQuickSave(announce) {
+  const day = sqToday();
+  if (day !== sqDay) { renderSleepQuick(); return; }      /* 跨天了：先换到新的一天，别写错日期 */
+  const v = sqReadForm();
+  if (v.sleep === null && v.nap === null) return;          /* 两项都空：什么都不改 */
+  if (v.sleep !== null && v.sleep > 1440) {
+    sqState.textContent = "睡眠别超过 24 小时";
+    sqState.classList.add("on");
+    return;
+  }
+  const h = findHealthByDate(day);
+  if (h) {
+    const same = (v.sleep === null || v.sleep === (h.sleep || null)) && (v.nap === null || v.nap === (h.nap || null));
+    if (same) { sqPaint(h); return; }
+    if (v.sleep !== null) h.sleep = v.sleep;
+    if (v.nap !== null) h.nap = v.nap;
+  } else {
+    state.health.push({ id: uid(), date: day, sleep: v.sleep, nap: v.nap, hr: null });
+  }
+  saveState();
+  sqPaint(findHealthByDate(day));
+  if (document.body.dataset.view === "health") renderHealth();
+  if (announce) toast("已记入今日睡眠");
+}
+
+[sqH, sqM, sqNap].forEach((el) => {
+  if (!el) return;
+  el.addEventListener("input", () => {
+    /* ★ 不在打字过程中落库：先清空「小时」再填新值的那一瞬间，
+       分栏还留着 30，会被读成「只睡了 30 分钟」把原数据盖掉。
+       所以只做兜底保存，且焦点还在输入框里就跳过。 */
+    clearTimeout(sqTimer);
+    sqTimer = setTimeout(() => {
+      const ae = document.activeElement;
+      if (ae === sqH || ae === sqM || ae === sqNap) return;
+      sleepQuickSave(false);
+    }, 1200);
+  });
+  el.addEventListener("blur", () => {
+    clearTimeout(sqTimer);
+    /* 同一组里从「小时」跳到「分」不算填完 —— 等焦点真正离开这一组再落库，
+       否则会出现「小时清空了、分还留着 30」被存成 30 分钟的中间态。 */
+    sqTimer = setTimeout(() => {
+      const ae = document.activeElement;
+      if (ae === sqH || ae === sqM || ae === sqNap) return;
+      sleepQuickSave(false);
+    }, 220);
+  });
+  el.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      clearTimeout(sqTimer);
+      sleepQuickSave(true);
+      el.blur();
+    }
+  });
+});
+if (sqForm) sqForm.addEventListener("submit", (e) => { e.preventDefault(); clearTimeout(sqTimer); sleepQuickSave(true); });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") { clearTimeout(sqTimer); sleepQuickSave(false); }
+});
+window.addEventListener("pagehide", () => { clearTimeout(sqTimer); sleepQuickSave(false); });
+renderSleepQuick();
+
+/* ---------- v22：滚过一屏出现「回首页」 ---------- */
+const btnToTop = document.getElementById("btnToTop");
+let toTopRaf = 0;
+
+function updateToTop() {
+  toTopRaf = 0;
+  if (!btnToTop) return;
+  const y = window.scrollY || document.documentElement.scrollTop || 0;
+  const h = window.innerHeight || 640;
+  const on = y > h - 8;   /* 超过一个手机屏高就出现 */
+  btnToTop.classList.toggle("show", on);
+  btnToTop.setAttribute("aria-hidden", on ? "false" : "true");
+  btnToTop.tabIndex = on ? 0 : -1;
+}
+
+if (btnToTop) {
+  btnToTop.addEventListener("click", () => {
+    /* 不在记录台就先切回记录台（首页），再回顶部 */
+    if ((document.body.dataset.view || "record") !== "record") location.hash = "#/record";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 80);
+  });
+  window.addEventListener("scroll", () => { if (!toTopRaf) toTopRaf = requestAnimationFrame(updateToTop); }, { passive: true });
+  window.addEventListener("resize", updateToTop);
+  updateToTop();
 }
 
 /* ============================================================
@@ -8529,7 +8808,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v21 · 2026-11-03");
+    add("版本", "v22 · 2026-11-14");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
