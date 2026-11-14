@@ -393,7 +393,12 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   gap: 9px;
   margin-bottom: 16px;
+  /* ★ v22.3：录入行必须永远压在悬浮组之上，这是「能不能记录」的底线 */
+  position: relative;
+  z-index: 60;
+  background: var(--surface);
 }
+.his-add { position: relative; z-index: 60; background: var(--surface); }
 
 /* ---------- V3.0 组合模式 ---------- */
 .word-btn.sel {
@@ -2209,7 +2214,7 @@ a { color: inherit; text-decoration: none; }
 /* 悬浮操作组：整组一起显隐，避免三个按钮各冒各的 */
 .fab-stack {
   position: fixed;
-  right: 20px;
+  right: 18px;
   bottom: 26px;
   z-index: 55;
   display: flex;
@@ -2218,12 +2223,15 @@ a { color: inherit; text-decoration: none; }
   gap: 8px;
   opacity: 1;
   visibility: visible;
-  transition: opacity 220ms var(--ease);
+  transition: opacity 220ms var(--ease), transform 200ms var(--ease);
 }
 /* 滚动过程中先淡下去，停手再浮上来 —— 免得一直挡着右下角那几行 */
 .fab-stack.moving { opacity: .38 !important; }
+/* ★ v22.3：实在让不开（例如整屏都是录入区）就淡到几乎不可见并放行点击，
+   宁可看不见按钮，也绝不能挡住加号 —— 记录是本分，翻页是便利。 */
+.fab-stack.yield { opacity: .08 !important; pointer-events: none; }
 .fab-btn {
-  width: 40px; height: 40px;
+  width: 38px; height: 38px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -2267,14 +2275,26 @@ a { color: inherit; text-decoration: none; }
   .sq-tip { font-size: 12px; }
 }
 @media (max-width: 900px) {
-  .fab-stack { right: 14px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+  /* ★ v22.3：贴住屏幕右边缘。
+     实测所有内容（记录行的编辑 / 删除、录入行的输入框和加号）右边缘都在 vw-38，
+     所以占住最右 38px 这条竖带，就等于「永远不挡任何东西」。 */
+  .fab-stack { right: 0; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+  /* 回首页在手机上收成圆钮，不带文字（文字会把整组撑到 78px，就又压上加号了） */
+  .to-top {
+    width: 38px; height: 38px;
+    padding: 0;
+    justify-content: center;
+    border-radius: 50%;
+    gap: 0;
+  }
+  .to-top span { display: none; }
+  .to-top svg { width: 17px; height: 17px; }
 }
 @media (max-width: 560px) {
   .sq-title { font-size: 17.5px; }
   .sq-num { width: 42px; height: 29px; }
   .sq-state { font-size: 11px; }
-  .to-top { height: 38px; padding: 0 12px 0 10px; }
-  .fab-btn { width: 40px; height: 40px; }
+  .fab-btn { width: 38px; height: 38px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2957,7 +2977,7 @@ a { color: inherit; text-decoration: none; }
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
   </button>
   <button class="to-top" id="btnToTop" type="button" aria-label="回到首页顶部" tabindex="-1" title="回到首页">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 10.9 12 3.6l8.8 7.3"/><path d="M5.6 9.7V20.2h12.8V9.7"/></svg>
     <span>回首页</span>
   </button>
 </div>
@@ -3477,6 +3497,8 @@ function route() {
   if (name === "history") renderHistory();
   if (name === "comps") renderComps();
   if (name === "health") renderHealth();
+  /* 换页后内容高度变了，悬浮组重新算一次让位 */
+  fabRefresh();
 }
 window.addEventListener("hashchange", route);
 
@@ -6910,7 +6932,76 @@ function updateFab() {
   btnPageUp.tabIndex = canUp ? 0 : -1;
   btnPageDown.tabIndex = canDown ? 0 : -1;
   btnToTop.tabIndex = 0;
+
+  fabAvoid();
 }
+
+/* ★ v22.3：让位 —— 和录入区撞上就整体上移，顶到天花板就淡出放行。
+   只和「录入区」避让：记录行里那些小图标被压一角，滚一下就能点；
+   若把它们也算进来，长列表里根本找不到空位，按钮会永远淡着，等于消失。 */
+const FAB_ZONES = ".note-add, .todo-add, .his-add, .sleep-quick";
+let fabShiftPx = 0;
+let fabYield = false;
+
+function fabApply(shift, yd) {
+  const px = Math.max(0, Math.round(shift));
+  if (px !== fabShiftPx) {
+    fabShiftPx = px;
+    fabStack.style.transform = px ? "translateY(" + (-px) + "px)" : "";
+  }
+  if (yd !== fabYield) {
+    fabYield = yd;
+    fabStack.classList.toggle("yield", yd);
+  }
+}
+
+function fabAvoid() {
+  if (!fabStack) return;
+  const cs = getComputedStyle(fabStack);
+  const right = parseFloat(cs.right) || 0;
+  const bottom = parseFloat(cs.bottom) || 0;
+  const w = fabStack.offsetWidth;
+  const h = fabStack.offsetHeight;
+  if (!w || !h) return;
+
+  const vh = window.innerHeight || 640;
+  const vw = window.innerWidth || 360;
+  const left = vw - right - w;
+  const rEdge = vw - right;
+  const baseTop = vh - bottom - h;
+
+  const zones = document.querySelectorAll(FAB_ZONES);
+  let top = baseTop;
+  for (let pass = 0; pass < 3; pass++) {
+    let move = 0;
+    for (let i = 0; i < zones.length; i++) {
+      const r = zones[i].getBoundingClientRect();
+      if (r.height < 10 || r.bottom <= 0 || r.top >= vh) continue;
+      if (r.right <= left + 4 || r.left >= rEdge - 4) continue;
+      if (r.bottom <= top - 4 || r.top >= top + h - 4) continue;
+      move = Math.max(move, top + h - r.top + 10);
+    }
+    if (move <= 4) break;
+    top -= move;
+  }
+
+  let shift = baseTop - top;
+  let yd = false;
+  if (top < 6) {
+    shift = baseTop - 6;
+    /* 顶到天花板还压着录入区，就别硬撑了 */
+    const t2 = 6;
+    for (let i = 0; i < zones.length; i++) {
+      const r = zones[i].getBoundingClientRect();
+      if (r.bottom <= t2 + 4 || r.top >= t2 + h - 4) continue;
+      if (r.right <= left + 4 || r.left >= rEdge - 4) continue;
+      yd = true; break;
+    }
+  }
+  fabApply(shift, yd);
+}
+
+function fabRefresh() { if (window.__fabRefresh) window.__fabRefresh(); }
 
 function pageJump(dir) {
   /* ★ v22.2：一次走 1.8 屏（用户要求翻得更远） */
@@ -6937,7 +7028,15 @@ if (fabStack) {
     fabIdle = setTimeout(() => fabStack.classList.remove("moving"), 420);
     if (!fabRaf) fabRaf = requestAnimationFrame(updateFab);
   }, { passive: true });
-  window.addEventListener("resize", updateFab);
+  window.addEventListener("resize", () => { updateFab(); });
+  /* 手机键盘弹出不触发 resize，用 visualViewport 兜住 */
+  if (window.visualViewport) window.visualViewport.addEventListener("resize", () => { updateFab(); });
+  /* 输入框获得 / 失去焦点时录入区可能刚从屏幕外滚进来，重新算一次让位 */
+  let fabFocusT = 0;
+  const fabOnFocus = () => { clearTimeout(fabFocusT); fabFocusT = setTimeout(updateFab, 260); };
+  document.addEventListener("focusin", fabOnFocus, true);
+  document.addEventListener("focusout", fabOnFocus, true);
+  window.__fabRefresh = updateFab;
   updateFab();
 }
 
@@ -8872,7 +8971,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v22.2 · 2026-11-14");
+    add("版本", "v22.3 · 2026-11-14");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
