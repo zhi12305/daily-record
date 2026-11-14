@@ -2204,7 +2204,7 @@ a { color: inherit; text-decoration: none; }
 .sq-state.on { color: var(--accent-deep); }
 
 /* ============================================================
-   v22-2：滚过一屏出现的「回首页」悬浮按钮
+   v22-2：常驻的「回首页」悬浮按钮（v22.2 起不再按滚动显隐）
    ============================================================ */
 /* 悬浮操作组：整组一起显隐，避免三个按钮各冒各的 */
 .fab-stack {
@@ -2216,14 +2216,12 @@ a { color: inherit; text-decoration: none; }
   flex-direction: column;
   align-items: flex-end;
   gap: 8px;
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(10px);
-  transition: opacity 220ms var(--ease), transform 220ms var(--ease), visibility 220ms var(--ease);
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 220ms var(--ease);
 }
-.fab-stack.show { opacity: 1; visibility: visible; transform: none; }
 /* 滚动过程中先淡下去，停手再浮上来 —— 免得一直挡着右下角那几行 */
-.fab-stack.show.moving { opacity: .38; }
+.fab-stack.moving { opacity: .38 !important; }
 .fab-btn {
   width: 40px; height: 40px;
   display: grid;
@@ -2950,8 +2948,8 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
-<!-- v22.1：右下角悬浮操作组（上翻 / 下翻 / 回首页），往下滑一点就出现 -->
-<div class="fab-stack" id="fabStack" aria-hidden="true">
+<!-- v22.2：右下角悬浮操作组（上翻 1.8 屏 / 下翻 1.8 屏 / 回首页），一进页面就常驻 -->
+<div class="fab-stack" id="fabStack">
   <button class="fab-btn" id="btnPageUp" type="button" aria-label="往上翻一屏" title="往上翻一屏">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
   </button>
@@ -6884,7 +6882,7 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", () => { clearTimeout(sqTimer); sleepQuickSave(false); });
 renderSleepQuick();
 
-/* ---------- v22.1：右下角悬浮操作组（上翻一屏 / 下翻一屏 / 回首页） ----------
+/* ---------- v22.2：右下角悬浮操作组（上翻 1.8 屏 / 下翻 1.8 屏 / 回首页） ----------
    v22 要滑过「一整屏」才出现；现在滑到 1/4 屏（约 200px）就浮出来，
    不用先把页面拉到底才找得到。
    上翻 / 下翻每次跳 0.9 屏，一屏多一点留一行做参照，不至于「跳到哪都不知道」。 */
@@ -6894,16 +6892,14 @@ const btnPageUp   = document.getElementById("btnPageUp");
 const btnPageDown = document.getElementById("btnPageDown");
 let fabRaf = 0;
 
+/* ★ v22.2：不再按滚动位置显隐 —— 一进页面就常驻，随时能手戳。
+   只保留两件事：到顶/到底时对应按钮变灰、滚动中整组淡一点。 */
 function updateFab() {
   fabRaf = 0;
   if (!fabStack) return;
   const y  = window.scrollY || document.documentElement.scrollTop || 0;
   const h  = window.innerHeight || 640;
   const sh = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
-  const on = y > Math.max(160, h * 0.25);   /* 更早出现 */
-
-  fabStack.classList.toggle("show", on);
-  fabStack.setAttribute("aria-hidden", on ? "false" : "true");
 
   const canUp = y > 8;
   const canDown = y + h < sh - 40;
@@ -6911,22 +6907,26 @@ function updateFab() {
   btnPageDown.classList.toggle("off", !canDown);
   btnPageUp.setAttribute("aria-disabled", canUp ? "false" : "true");
   btnPageDown.setAttribute("aria-disabled", canDown ? "false" : "true");
-  btnPageUp.tabIndex = on && canUp ? 0 : -1;
-  btnPageDown.tabIndex = on && canDown ? 0 : -1;
-  btnToTop.tabIndex = on ? 0 : -1;
+  btnPageUp.tabIndex = canUp ? 0 : -1;
+  btnPageDown.tabIndex = canDown ? 0 : -1;
+  btnToTop.tabIndex = 0;
 }
 
 function pageJump(dir) {
+  /* ★ v22.2：一次走 1.8 屏（用户要求翻得更远） */
   const h = window.innerHeight || 640;
-  window.scrollBy({ top: dir * Math.round(h * 0.9), behavior: "smooth" });
+  window.scrollBy({ top: dir * Math.round(h * 1.8), behavior: "smooth" });
 }
 
 if (fabStack) {
   btnPageUp.addEventListener("click", () => pageJump(-1));
   btnPageDown.addEventListener("click", () => pageJump(1));
   btnToTop.addEventListener("click", () => {
-    /* 不在记录台就先切回记录台（首页），再回顶部 */
-    if ((document.body.dataset.view || "record") !== "record") location.hash = "#/record";
+    const notHome = (document.body.dataset.view || "record") !== "record";
+    const y = window.scrollY || document.documentElement.scrollTop || 0;
+    /* 已经站在首页最顶：不装作在干活，给个反馈就行 */
+    if (!notHome && y <= 8) { toast("已经在首页最上面了"); return; }
+    if (notHome) location.hash = "#/record";
     window.scrollTo({ top: 0, behavior: "smooth" });
     setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 80);
   });
@@ -8872,7 +8872,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v22.1 · 2026-11-14");
+    add("版本", "v22.2 · 2026-11-14");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
