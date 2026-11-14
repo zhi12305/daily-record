@@ -2206,31 +2206,56 @@ a { color: inherit; text-decoration: none; }
 /* ============================================================
    v22-2：滚过一屏出现的「回首页」悬浮按钮
    ============================================================ */
-.to-top {
+/* 悬浮操作组：整组一起显隐，避免三个按钮各冒各的 */
+.fab-stack {
   position: fixed;
   right: 20px;
   bottom: 26px;
   z-index: 55;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px);
+  transition: opacity 220ms var(--ease), transform 220ms var(--ease), visibility 220ms var(--ease);
+}
+.fab-stack.show { opacity: 1; visibility: visible; transform: none; }
+/* 滚动过程中先淡下去，停手再浮上来 —— 免得一直挡着右下角那几行 */
+.fab-stack.show.moving { opacity: .38; }
+.fab-btn {
+  width: 40px; height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--text);
+  background: rgba(255, 255, 255, .94);
+  border: 1px solid rgba(61, 58, 54, .10);
+  box-shadow: 0 3px 12px rgba(61, 58, 54, .13);
+  transition: transform 150ms var(--ease), opacity 150ms var(--ease), box-shadow 150ms var(--ease);
+}
+.fab-btn svg { width: 17px; height: 17px; }
+.fab-btn:active { transform: scale(.92); }
+/* 到顶 / 到底：按钮变淡且点不动，位置仍在，不会跳来跳去 */
+.fab-btn.off { opacity: .32; box-shadow: none; pointer-events: none; }
+.to-top {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 40px;
-  padding: 0 14px 0 11px;
+  height: 38px;
+  padding: 0 13px 0 10px;
   border-radius: var(--radius-pill);
   font-size: 12.5px;
   font-weight: 600;
   letter-spacing: .02em;
   color: var(--text);
   background: #FFFFFF;
-  border: 1px solid #E2DCD3;
-  box-shadow: 0 4px 14px rgba(61, 58, 54, .16);
-  opacity: 0;
-  visibility: hidden;
-  transform: translateY(10px) scale(.96);
-  transition: opacity 220ms var(--ease), transform 220ms var(--ease), visibility 220ms var(--ease);
+  border: 1px solid rgba(61, 58, 54, .10);
+  box-shadow: 0 3px 12px rgba(61, 58, 54, .13);
+  transition: transform 150ms var(--ease);
 }
 .to-top svg { width: 15px; height: 15px; flex: none; }
-.to-top.show { opacity: 1; visibility: visible; transform: none; }
 .to-top:active { transform: scale(.95); }
 /* 桌面端：卡片更宽，输入框和字号跟着放大，别让两行元素挤在左边一小坨 */
 @media (min-width: 901px) {
@@ -2244,13 +2269,14 @@ a { color: inherit; text-decoration: none; }
   .sq-tip { font-size: 12px; }
 }
 @media (max-width: 900px) {
-  .to-top { right: 14px; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); }
+  .fab-stack { right: 14px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
 }
 @media (max-width: 560px) {
   .sq-title { font-size: 17.5px; }
   .sq-num { width: 42px; height: 29px; }
   .sq-state { font-size: 11px; }
   .to-top { height: 38px; padding: 0 12px 0 10px; }
+  .fab-btn { width: 40px; height: 40px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2924,11 +2950,19 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
-<!-- v22：滚过一屏才出现，点一下回首页顶部 -->
-<button class="to-top" id="btnToTop" type="button" aria-label="回到首页顶部" aria-hidden="true" tabindex="-1" title="回到首页">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
-  <span>回首页</span>
-</button>
+<!-- v22.1：右下角悬浮操作组（上翻 / 下翻 / 回首页），往下滑一点就出现 -->
+<div class="fab-stack" id="fabStack" aria-hidden="true">
+  <button class="fab-btn" id="btnPageUp" type="button" aria-label="往上翻一屏" title="往上翻一屏">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+  </button>
+  <button class="fab-btn" id="btnPageDown" type="button" aria-label="往下翻一屏" title="往下翻一屏">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+  </button>
+  <button class="to-top" id="btnToTop" type="button" aria-label="回到首页顶部" tabindex="-1" title="回到首页">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="m6 11 6-6 6 6"/></svg>
+    <span>回首页</span>
+  </button>
+</div>
 
 <div class="toast" id="toast" role="status"></div>
 <input type="file" id="fileImport" accept=".json,application/json" hidden>
@@ -6850,31 +6884,61 @@ document.addEventListener("visibilitychange", () => {
 window.addEventListener("pagehide", () => { clearTimeout(sqTimer); sleepQuickSave(false); });
 renderSleepQuick();
 
-/* ---------- v22：滚过一屏出现「回首页」 ---------- */
-const btnToTop = document.getElementById("btnToTop");
-let toTopRaf = 0;
+/* ---------- v22.1：右下角悬浮操作组（上翻一屏 / 下翻一屏 / 回首页） ----------
+   v22 要滑过「一整屏」才出现；现在滑到 1/4 屏（约 200px）就浮出来，
+   不用先把页面拉到底才找得到。
+   上翻 / 下翻每次跳 0.9 屏，一屏多一点留一行做参照，不至于「跳到哪都不知道」。 */
+const fabStack    = document.getElementById("fabStack");
+const btnToTop    = document.getElementById("btnToTop");
+const btnPageUp   = document.getElementById("btnPageUp");
+const btnPageDown = document.getElementById("btnPageDown");
+let fabRaf = 0;
 
-function updateToTop() {
-  toTopRaf = 0;
-  if (!btnToTop) return;
-  const y = window.scrollY || document.documentElement.scrollTop || 0;
-  const h = window.innerHeight || 640;
-  const on = y > h - 8;   /* 超过一个手机屏高就出现 */
-  btnToTop.classList.toggle("show", on);
-  btnToTop.setAttribute("aria-hidden", on ? "false" : "true");
+function updateFab() {
+  fabRaf = 0;
+  if (!fabStack) return;
+  const y  = window.scrollY || document.documentElement.scrollTop || 0;
+  const h  = window.innerHeight || 640;
+  const sh = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+  const on = y > Math.max(160, h * 0.25);   /* 更早出现 */
+
+  fabStack.classList.toggle("show", on);
+  fabStack.setAttribute("aria-hidden", on ? "false" : "true");
+
+  const canUp = y > 8;
+  const canDown = y + h < sh - 40;
+  btnPageUp.classList.toggle("off", !canUp);
+  btnPageDown.classList.toggle("off", !canDown);
+  btnPageUp.setAttribute("aria-disabled", canUp ? "false" : "true");
+  btnPageDown.setAttribute("aria-disabled", canDown ? "false" : "true");
+  btnPageUp.tabIndex = on && canUp ? 0 : -1;
+  btnPageDown.tabIndex = on && canDown ? 0 : -1;
   btnToTop.tabIndex = on ? 0 : -1;
 }
 
-if (btnToTop) {
+function pageJump(dir) {
+  const h = window.innerHeight || 640;
+  window.scrollBy({ top: dir * Math.round(h * 0.9), behavior: "smooth" });
+}
+
+if (fabStack) {
+  btnPageUp.addEventListener("click", () => pageJump(-1));
+  btnPageDown.addEventListener("click", () => pageJump(1));
   btnToTop.addEventListener("click", () => {
     /* 不在记录台就先切回记录台（首页），再回顶部 */
     if ((document.body.dataset.view || "record") !== "record") location.hash = "#/record";
     window.scrollTo({ top: 0, behavior: "smooth" });
     setTimeout(() => window.scrollTo({ top: 0, behavior: "smooth" }), 80);
   });
-  window.addEventListener("scroll", () => { if (!toTopRaf) toTopRaf = requestAnimationFrame(updateToTop); }, { passive: true });
-  window.addEventListener("resize", updateToTop);
-  updateToTop();
+  let fabIdle = 0;
+  window.addEventListener("scroll", () => {
+    fabStack.classList.add("moving");
+    clearTimeout(fabIdle);
+    fabIdle = setTimeout(() => fabStack.classList.remove("moving"), 420);
+    if (!fabRaf) fabRaf = requestAnimationFrame(updateFab);
+  }, { passive: true });
+  window.addEventListener("resize", updateFab);
+  updateFab();
 }
 
 /* ============================================================
@@ -8808,7 +8872,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v22 · 2026-11-14");
+    add("版本", "v22.1 · 2026-11-14");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
