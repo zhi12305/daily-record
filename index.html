@@ -244,6 +244,7 @@ a { color: inherit; text-decoration: none; }
   background: var(--accent);
   flex: none;
 }
+#view-memo   .view-head h2::before { background: var(--m-lilac); }
 #view-ledger .view-head h2::before { background: var(--m-clay); }
 #view-todo   .view-head h2::before { background: var(--m-blue); }
 
@@ -393,6 +394,95 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   gap: 9px;
   margin-bottom: 16px;
+}
+
+/* ---------- v23 备忘录 ---------- */
+.memo-add { display: flex; gap: 9px; align-items: flex-end; margin-bottom: 18px; }
+.memo-input {
+  flex: 1; min-width: 0;
+  resize: vertical;
+  min-height: 46px;
+  max-height: 220px;
+  border: none;
+  background: var(--surface-soft);
+  border-radius: 14px;
+  padding: 11px 15px;
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text);
+  transition: background var(--dur) var(--ease), box-shadow var(--dur) var(--ease);
+}
+.memo-input::placeholder { color: var(--text-3); }
+.memo-input:focus { outline: none; background: #FFFFFF; box-shadow: 0 0 0 1.5px var(--accent), var(--shadow-btn); }
+.memo-add .add-btn { margin-bottom: 3px; }
+
+.memo-groups { display: flex; flex-direction: column; gap: 18px; }
+.memo-day-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0 4px 7px;
+  border-bottom: 1px solid var(--line-soft);
+  margin-bottom: 4px;
+}
+.memo-day-date { font-size: 13.5px; font-weight: 600; letter-spacing: .01em; }
+.memo-day-date .sub { margin-left: 6px; font-size: 11.5px; font-weight: 400; color: var(--text-3); }
+.memo-day-n { margin-left: auto; font-size: 11.5px; color: var(--text-3); }
+
+.memo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 4px;
+  border-radius: var(--radius-md);
+  transition: background var(--dur) var(--ease);
+}
+.memo-item + .memo-item { border-top: 1px solid var(--line-soft); }
+.memo-time { flex: none; font-size: 12px; color: var(--text-3); line-height: 24px; font-variant-numeric: tabular-nums; }
+.memo-text {
+  flex: 1; min-width: 0;
+  font-size: 14.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.memo-edit, .memo-del {
+  flex: none;
+  width: 26px; height: 26px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  color: var(--text-3);
+  background: transparent;
+  transition: color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.memo-edit svg { width: 13px; height: 13px; }
+.memo-del svg { width: 12px; height: 12px; }
+.memo-edit:hover { color: var(--text); background: var(--surface-soft); }
+.memo-del:hover { color: var(--danger-deep); background: rgba(196, 148, 148, .12); }
+.memo-edit-area {
+  flex: 1; min-width: 0;
+  font-family: inherit;
+  font-size: 14.5px;
+  line-height: 1.7;
+  color: var(--text);
+  background: #FFFFFF;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 7px 10px;
+  resize: vertical;
+  min-height: 62px;
+}
+.memo-edit-area:focus { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
+.memo-empty { padding: 26px 8px 18px; text-align: center; color: var(--text-2); }
+.memo-empty p { margin: 0; }
+.memo-empty .sub { margin-top: 6px; font-size: 12.5px; color: var(--text-3); }
+
+@media (max-width: 900px), (hover: none) and (pointer: coarse) {
+  .memo-edit, .memo-del { width: 38px !important; height: 38px !important; }
+  .memo-edit svg { width: 15px !important; height: 15px !important; }
+  .memo-del svg { width: 14px !important; height: 14px !important; }
 }
 
 /* ---------- V3.0 组合模式 ---------- */
@@ -1336,6 +1426,54 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- 模块二：待办清单 ---------- */
 .todo-list { display: flex; flex-direction: column; }
+
+/* ---------- v23：待办按日期分组，点一天展开看那天的事 ---------- */
+.todo-groups { display: flex; flex-direction: column; gap: 6px; }
+.td-day {
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  transition: border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.td-day.open { border-color: var(--line-soft); background: var(--surface-softer); }
+.td-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 11px 12px 11px 8px;
+  border-radius: var(--radius-md);
+  text-align: left;
+  transition: background var(--dur) var(--ease);
+}
+.td-head:hover { background: var(--surface-softer); }
+.td-date { font-size: 14px; font-weight: 600; flex: none; }
+.td-date .sub { margin-left: 6px; font-size: 11.5px; font-weight: 400; color: var(--text-3); }
+.td-meta { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
+.td-pill {
+  font-size: 11.5px;
+  padding: 2px 9px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  letter-spacing: .02em;
+}
+.td-pill.all-done { background: var(--surface-soft); color: var(--text-3); }
+.td-arrow { color: var(--text-3); display: grid; place-items: center; transition: transform var(--dur) var(--ease); }
+.td-arrow svg { width: 12px; height: 12px; }
+.td-day.open .td-arrow { transform: rotate(180deg); }
+.td-body { display: none; padding: 0 10px 6px; }
+.td-day.open .td-body { display: block; }
+/* 已完成统一沉到当天底部，前面加一条分隔，视觉上「这些已经翻篇了」 */
+.td-sep {
+  margin: 4px 0 2px;
+  padding: 6px 4px 2px;
+  border-top: 1px dashed var(--line);
+  font-size: 11.5px;
+  color: var(--text-3);
+  letter-spacing: .03em;
+}
+.td-body .todo-item { padding-left: 0; }
+.td-body .todo-item:last-child { border-bottom: none; }
 
 .todo-item {
   display: flex;
@@ -2328,6 +2466,10 @@ a { color: inherit; text-decoration: none; }
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M8 3v4M16 3v4M3 10h18"/><path d="m9.5 15.5 1.8 1.8 3.2-3.6"/></svg>
         <span class="label">历史记录</span>
       </a>
+      <a class="nav-item" href="#/memo" data-view="memo" title="备忘录">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h9.5L20 8v12.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-16a1 1 0 0 1 1-1Z"/><path d="M15 3.5V8h4.5"/><path d="M8.5 12.5h8M8.5 16.5h5.5"/></svg>
+        <span class="label">备忘录</span>
+      </a>
       <a class="nav-item" href="#/ledger" data-view="ledger" title="记账">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="12" rx="2.5"/><circle cx="12" cy="13" r="2.6"/><path d="M6.5 7V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/></svg>
         <span class="label">记账</span>
@@ -2576,6 +2718,29 @@ a { color: inherit; text-decoration: none; }
       </div>
     </section>
 
+    <!-- 视图：备忘录 -->
+    <section class="view" id="view-memo">
+      <header class="view-head">
+        <h2>备忘录</h2>
+        <div class="head-right">
+          <span class="count" id="memoCount"></span>
+        </div>
+      </header>
+      <div class="card">
+        <form class="memo-add" id="memoForm" autocomplete="off">
+          <textarea id="memoInput" class="memo-input" rows="2" maxlength="2000"
+            placeholder="随手记一个想法…（回车保存，Shift + 回车换行）"
+            aria-label="写下一个想法"></textarea>
+          <button type="submit" class="add-btn" aria-label="保存想法">+</button>
+        </form>
+        <div class="memo-groups" id="memoGroups"></div>
+        <div class="memo-empty" id="memoEmpty" hidden>
+          <p>还没有想法。</p>
+          <p class="sub">想到什么就写一句，不用组织语言。会自动按日期归档。</p>
+        </div>
+      </div>
+    </section>
+
     <!-- 视图三：待办清单 -->
     <section class="view" id="view-todo">
       <header class="view-head">
@@ -2589,7 +2754,7 @@ a { color: inherit; text-decoration: none; }
           <input id="todoInput" class="pill-input" type="text" placeholder="写点什么，回车添加…" maxlength="80">
           <button type="submit" class="add-btn" aria-label="添加待办">+</button>
         </form>
-        <ul class="todo-list" id="todoList"></ul>
+        <div class="todo-groups" id="todoList"></div>
         <div class="todo-foot" id="todoFoot" hidden>
           <button class="ghost-btn danger" id="btnClear">清空已完成</button>
         </div>
@@ -3057,6 +3222,7 @@ function defaultState() {
     ledgerCats: LEDGER_CATS.map(c => ({ key: c.key, name: c.name, color: c.color })), // 可自定义分类
     comps: [],     // { id, name, url, deadline, poster, note, createdAt }  deadline = "YYYY-MM-DD"
     health: [],    // { id, date, sleep, nap, hr }  sleep/nap 分钟、hr 次/分；未填为 null
+    memos: [],     // 备忘录：{ id, text, createdAt, updatedAt }  想法按天归类
     sync: defaultSync(), // 云同步连接信息（仅本地，不推云端）
   };
 }
@@ -3151,6 +3317,7 @@ function normalizeState(d) {
   if (Array.isArray(d.spans)) s.spans = d.spans.filter(sp => sp && typeof sp.title === "string" && sp.title.trim() && typeof sp.startTs === "number").map(sp => ({ id: String(sp.id || uid()), title: sp.title.trim().slice(0, 20), startTs: sp.startTs, endTs: Number(sp.endTs) > 0 ? Math.floor(Number(sp.endTs)) : 0, placeId: String(sp.placeId || ""), noPlace: !!sp.noPlace }));
   if (Array.isArray(d.todos))   s.todos   = d.todos.filter(t => t && typeof t.text === "string").map(t => ({ id: String(t.id || uid()), text: t.text.slice(0, 80), done: !!t.done, createdAt: Number(t.createdAt) || Date.now() }));
   if (Array.isArray(d.comps))   s.comps   = d.comps.filter(c => c && typeof c.name === "string" && c.name.trim()).map(c => ({ id: String(c.id || uid()), name: c.name.trim().slice(0, 40), url: String(c.url || "").slice(0, 300), deadline: validDate(c.deadline), poster: typeof c.poster === "string" ? c.poster.slice(0, 300000) : "", note: String(c.note || "").slice(0, 30), createdAt: Number(c.createdAt) || Date.now() }));
+  if (Array.isArray(d.memos))   s.memos   = d.memos.filter(m => m && typeof m.text === "string" && m.text.trim()).map(m => ({ id: String(m.id || uid()), text: m.text.slice(0, 2000), createdAt: Number(m.createdAt) || Date.now(), updatedAt: Number(m.updatedAt) || 0 }));
   if (Array.isArray(d.health))  s.health  = d.health.filter(h => h && validDate(h.date)).map(h => ({ id: String(h.id || uid()), date: validDate(h.date), sleep: Number(h.sleep) > 0 ? clampNum(h.sleep, 0, 24 * 60) : null, nap: Number(h.nap) > 0 ? clampNum(h.nap, 0, 720) : null, hr: Number(h.hr) > 0 ? clampNum(h.hr, 30, 220) : null }));
   /* 记账分类：自定义列表（老数据没有该字段时用默认，并保证"其他"始终存在）
      注意：必须放在账目 ledger 之前解析，因为账目分类要按这张表校验 */
@@ -3481,7 +3648,7 @@ document.getElementById("btnCollapse").addEventListener("click", () => {
   applySidebar();
 });
 
-const VIEWS = ["record", "history", "ledger", "todo", "comps", "health"];
+const VIEWS = ["record", "history", "memo", "ledger", "todo", "comps", "health"];
 function route() {
   const v = (location.hash || "").replace(/^#\/?/, "");
   const name = VIEWS.includes(v) ? v : "record";
@@ -3497,6 +3664,8 @@ function route() {
   if (name === "record") { renderTimeline(); renderSpanBar(); backHintCheck(); }
   if (name === "ledger") renderLedger();
   if (name === "history") renderHistory();
+  if (name === "memo") renderMemos();
+  if (name === "todo") renderTodos();
   if (name === "comps") renderComps();
   if (name === "health") renderHealth();
   /* 换页后内容高度变了，悬浮组重新算一次让位 */
@@ -4670,6 +4839,176 @@ todoForm.addEventListener("submit", (e) => {
   renderHistory();
 });
 
+/* ============================================================
+   v23 备忘录：写想法，按天归档
+   ============================================================ */
+const memoForm = document.getElementById("memoForm");
+const memoInput = document.getElementById("memoInput");
+const memoGroups = document.getElementById("memoGroups");
+const memoCount = document.getElementById("memoCount");
+const memoEmpty = document.getElementById("memoEmpty");
+
+function memoItemEl(m) {
+  const row = document.createElement("div");
+  row.className = "memo-item";
+  row.dataset.id = m.id;
+
+  const time = document.createElement("span");
+  time.className = "memo-time";
+  time.textContent = fmtTime(m.createdAt);
+
+  const text = document.createElement("div");
+  text.className = "memo-text";
+  text.textContent = m.text;
+
+  const edit = document.createElement("button");
+  edit.type = "button";
+  edit.className = "memo-edit";
+  edit.setAttribute("aria-label", "编辑这条想法");
+  edit.innerHTML = editBtnSvg();
+  edit.addEventListener("click", () => memoStartEdit(m.id));
+
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "memo-del";
+  del.setAttribute("aria-label", "删除这条想法");
+  del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  del.addEventListener("click", () => memoDelete(m.id));
+
+  row.append(time, text, edit, del);
+  return row;
+}
+
+function renderMemos() {
+  if (!memoGroups) return;
+  memoGroups.innerHTML = "";
+  const list = state.memos.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  /* 按「归属日」归类，坑的是凌晨写的：0–4 点算前一天，和记录台同一套日界 */
+  const groups = new Map();
+  list.forEach(m => {
+    const k = dayKey(m.createdAt || Date.now());
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(m);
+  });
+  const keys = [...groups.keys()].sort().reverse();
+
+  keys.forEach(k => {
+    const items = groups.get(k).slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const box = document.createElement("div");
+    box.className = "memo-day";
+    box.dataset.k = k;
+
+    const head = document.createElement("div");
+    head.className = "memo-day-head";
+    const date = document.createElement("span");
+    date.className = "memo-day-date";
+    const parts = dateLabelParts(k);
+    date.textContent = parts.rel || parts.full;
+    if (parts.rel) {
+      const sub = document.createElement("span");
+      sub.className = "sub";
+      sub.textContent = parts.full;
+      date.appendChild(sub);
+    }
+    const cnt = document.createElement("span");
+    cnt.className = "memo-day-n";
+    cnt.textContent = items.length + " 条";
+    head.append(date, cnt);
+
+    box.appendChild(head);
+    items.forEach(m => box.appendChild(memoItemEl(m)));
+    memoGroups.appendChild(box);
+  });
+
+  memoEmpty.hidden = state.memos.length > 0;
+  memoCount.textContent = state.memos.length ? "共 " + state.memos.length + " 条想法" : "";
+}
+
+function memoAdd(text) {
+  const t = String(text || "").trim();
+  if (!t) return null;
+  const m = { id: uid(), text: t.slice(0, 2000), createdAt: Date.now(), updatedAt: 0 };
+  state.memos.unshift(m);
+  return m;
+}
+
+function memoStartEdit(id) {
+  const m = state.memos.find(x => x.id === id);
+  const row = memoGroups && memoGroups.querySelector('.memo-item[data-id="' + CSS.escape(id) + '"]');
+  if (!m || !row || row.querySelector(".memo-edit-area")) return;
+  const textEl = row.querySelector(".memo-text");
+  if (!textEl) return;
+
+  const area = document.createElement("textarea");
+  area.className = "memo-edit-area";
+  area.value = m.text;
+  area.rows = Math.min(10, Math.max(3, m.text.split("\n").length + 1));
+  textEl.replaceWith(area);
+  area.focus();
+  area.setSelectionRange(area.value.length, area.value.length);
+
+  let done = false;
+  const finish = (save) => {
+    if (done) return;
+    done = true;
+    const v = area.value.trim();
+    if (save && v && v !== m.text) {
+      m.text = v.slice(0, 2000);
+      m.updatedAt = Date.now();
+      saveState();
+      toast("已修改");
+    }
+    renderMemos();
+    if (typeof renderHistory === "function") renderHistory();
+  };
+  area.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") { e.preventDefault(); finish(false); }
+    /* 回车保存、Shift + 回车换行 —— 和输入框的手感保持一致 */
+    else if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); finish(true); }
+  });
+  area.addEventListener("blur", () => finish(true));
+}
+
+function memoDelete(id) {
+  const snapshot = state.memos.find(x => x.id === id);
+  if (!snapshot) return;
+  state.memos = state.memos.filter(x => x.id !== id);
+  saveState();
+  renderMemos();
+  if (typeof renderHistory === "function") renderHistory();
+  offerUndo(snapshot, (memo) => {
+    state.memos.push(memo);
+    state.memos.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    saveState();
+    renderMemos();
+  }, "这条想法");
+}
+
+if (memoForm) {
+  memoForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const m = memoAdd(memoInput.value);
+    if (!m) return;
+    memoInput.value = "";
+    memoInput.style.height = "";
+    saveState();
+    renderMemos();
+    toast("已记下");
+  });
+  /* 回车保存、Shift + 回车换行：别让一行想法被回车劈成两条 */
+  memoInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      memoForm.requestSubmit();
+    }
+  });
+  memoInput.addEventListener("input", () => {
+    memoInput.style.height = "auto";
+    memoInput.style.height = Math.min(220, memoInput.scrollHeight) + "px";
+  });
+}
+
 /* 待办相关改动后统一刷新：时间线（混排）+ 待办视图 + 历史 */
 function refreshRecordViews(flashId) {
   renderTimeline(flashId);
@@ -4677,12 +5016,14 @@ function refreshRecordViews(flashId) {
   renderHistory();
 }
 
-function renderTodos() {
-  todoList.innerHTML = "";
-  state.todos.forEach(t => {
-    const li = document.createElement("li");
-    li.className = "todo-item" + (t.done ? " done" : "");
-    li.dataset.id = t.id;
+/* v23：哪几天是展开的（只活在内存里，刷新后回到「今天展开」） */
+const todoOpenDays = new Set();
+let todoOpenInited = false;
+
+function todoRow(t) {
+  const li = document.createElement("div");
+  li.className = "todo-item" + (t.done ? " done" : "");
+  li.dataset.id = t.id;
 
     const check = document.createElement("label");
     check.className = "todo-check";
@@ -4712,8 +5053,93 @@ function renderTodos() {
     del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
     del.addEventListener("click", () => deleteTodo(t.id));
 
-    li.append(check, text, edit, del);
-    todoList.appendChild(li);
+  li.append(check, text, edit, del);
+  return li;
+}
+
+function renderTodos() {
+  if (!todoList) return;
+  todoList.innerHTML = "";
+  if (!state.todos.length) {
+    todoCount.textContent = "";
+    todoFoot.hidden = true;
+    return;
+  }
+
+  /* 按「归属日」分组：和记录台同一套凌晨 4 点日界，凌晨写的不会串到前一天之外 */
+  const groups = new Map();
+  state.todos.forEach(t => {
+    const k = dayKey(Number(t.createdAt) || Date.now());
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k).push(t);
+  });
+  const keys = [...groups.keys()].sort().reverse();
+  const todayK = dayKey(Date.now());
+
+  /* 头一次渲染：今天默认展开；今天没待办就展开最近一个还有未完成的日期 */
+  if (!todoOpenInited) {
+    todoOpenInited = true;
+    if (groups.has(todayK)) todoOpenDays.add(todayK);
+    const firstPending = keys.find(k => groups.get(k).some(t => !t.done));
+    if (firstPending) todoOpenDays.add(firstPending);
+  }
+
+  keys.forEach(k => {
+    const all = groups.get(k);
+    /* 未完成在上（先写的先做），已完成沉到当天最底部（刚完成的在上） */
+    const pend = all.filter(t => !t.done).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    const fin  = all.filter(t => t.done).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const open = todoOpenDays.has(k);
+
+    const day = document.createElement("div");
+    day.className = "td-day" + (open ? " open" : "");
+    day.dataset.k = k;
+
+    const head = document.createElement("button");
+    head.type = "button";
+    head.className = "td-head";
+    head.setAttribute("aria-expanded", open ? "true" : "false");
+
+    const date = document.createElement("span");
+    date.className = "td-date";
+    const parts = dateLabelParts(k);
+    date.textContent = parts.rel || parts.full;
+    if (parts.rel) {
+      const sub = document.createElement("span");
+      sub.className = "sub";
+      sub.textContent = parts.full;
+      date.appendChild(sub);
+    }
+
+    const meta = document.createElement("span");
+    meta.className = "td-meta";
+    const pill = document.createElement("span");
+    pill.className = "td-pill" + (pend.length ? "" : " all-done");
+    pill.textContent = pend.length ? pend.length + " 项待办" : (fin.length ? "全部完成" : "空");
+    const arrow = document.createElement("span");
+    arrow.className = "td-arrow";
+    arrow.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+    meta.append(pill, arrow);
+    head.append(date, meta);
+    head.addEventListener("click", () => {
+      if (todoOpenDays.has(k)) todoOpenDays.delete(k);
+      else todoOpenDays.add(k);
+      renderTodos();
+    });
+
+    const body = document.createElement("div");
+    body.className = "td-body";
+    pend.forEach(t => body.appendChild(todoRow(t)));
+    if (fin.length) {
+      const sep = document.createElement("div");
+      sep.className = "td-sep";
+      sep.textContent = "已完成 " + fin.length + " 项";
+      body.appendChild(sep);
+      fin.forEach(t => body.appendChild(todoRow(t)));
+    }
+
+    day.append(head, body);
+    todoList.appendChild(day);
   });
 
   const left = state.todos.filter(t => !t.done).length;
@@ -7337,7 +7763,7 @@ function isEmptyBiz(s) {
      表现就是「怎么点都不同步、页面还是空的」。这里全部做存在性兜底。 */
   const a = (k) => (Array.isArray(s && s[k]) ? s[k] : []);
   return !a("records").length && !a("todos").length && !a("ledger").length &&
-         !a("comps").length && !a("health").length;
+         !a("comps").length && !a("health").length && !a("memos").length;
 }
 
 /* 精简单条记录：空字符串 / false / 0 一律不写（读回来由 normalizeState 兜默认值） */
@@ -7465,7 +7891,7 @@ async function cloudPutBin(binId, payload) {
           否则视为「新增」，保留
    —— 这样两台手机可以各记各的，记录只会越合越多，不会互相覆盖。
    ============================================================ */
-const SYNC_LISTS = ["records", "spans", "todos", "ledger", "comps", "health"];
+const SYNC_LISTS = ["records", "spans", "todos", "ledger", "comps", "health", "memos"];
 const SYNC_KEYS  = ["words", "places", "ledgerCats"];
 
 /* 单条记录的「版本戳」：删除/修改都靠它判断新旧 */
@@ -7477,6 +7903,8 @@ function itemStamp(kind, it) {
   if (kind === "ledger")  return Number(it.ts) || 0;
   if (kind === "comps")   return Number(it.createdAt) || 0;
   if (kind === "health")  return Number(it.hr) || 0;
+  /* 备忘录：改过就按修改时间算，没改过按创建时间 */
+  if (kind === "memos")   return Math.max(Number(it.createdAt) || 0, Number(it.updatedAt) || 0);
   return 0;
 }
 
@@ -8613,7 +9041,7 @@ function detectDataLoss() {
 
 /* 数据量每满 25 条，提醒导出一次备份（localStorage 可能被浏览器清理） */
 function maybeNudge() {
-  const total = state.records.length + state.todos.length + state.ledger.length + state.comps.length + state.health.length;
+  const total = state.records.length + state.todos.length + state.ledger.length + state.comps.length + state.health.length + (state.memos || []).length;
   const mark = Math.floor(total / 25) * 25;
   if (mark > 0 && mark > (state.ui.lastNudge || 0)) {
     state.ui.lastNudge = mark;
@@ -8906,7 +9334,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v22.4 · 2026-11-14");
+    add("版本", "v23 · 2026-11-16");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
