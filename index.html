@@ -393,12 +393,7 @@ a { color: inherit; text-decoration: none; }
   display: flex;
   gap: 9px;
   margin-bottom: 16px;
-  /* ★ v22.3：录入行必须永远压在悬浮组之上，这是「能不能记录」的底线 */
-  position: relative;
-  z-index: 60;
-  background: var(--surface);
 }
-.his-add { position: relative; z-index: 60; background: var(--surface); }
 
 /* ---------- V3.0 组合模式 ---------- */
 .word-btn.sel {
@@ -1890,6 +1885,27 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 22px;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--line-soft);
+  /* ★ v22.4：翻页按钮住在这条里，所以它必须钉住 —— 否则往下读就够不着了。
+     ::before / ::after 把上下两条缝隙也刷成底色，滚动时内容不会从缝里透出来。 */
+  position: sticky;
+  top: 0;
+  z-index: 38;
+  background: var(--bg);
+}
+.topbar::before,
+.topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: var(--bg);
+  pointer-events: none;
+}
+.topbar::before { bottom: 100%; height: 60px; }
+.topbar::after  {
+  top: 100%;
+  height: 22px;
+  box-shadow: 0 9px 14px -10px rgba(61, 58, 54, .16);
 }
 .top-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .top-date { font-size: 13px; color: var(--text-2); letter-spacing: .04em; font-variant-numeric: tabular-nums; }
@@ -2212,56 +2228,51 @@ a { color: inherit; text-decoration: none; }
    v22-2：常驻的「回首页」悬浮按钮（v22.2 起不再按滚动显隐）
    ============================================================ */
 /* 悬浮操作组：整组一起显隐，避免三个按钮各冒各的 */
+/* ★ v22.4：按钮组整体搬进顶部条的空档里 —— 完全离开内容区，
+   滚到哪里都压不到录入框和加号，也就彻底不需要「避让」「淡出」那套补救了。 */
 .fab-stack {
-  position: fixed;
-  right: 18px;
-  bottom: 26px;
-  z-index: 55;
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  opacity: 1;
-  visibility: visible;
-  transition: opacity 220ms var(--ease), transform 200ms var(--ease);
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  margin: 0 auto;          /* 在日期和时钟之间居中 */
+  padding: 0 2px;
 }
-/* 滚动过程中先淡下去，停手再浮上来 —— 免得一直挡着右下角那几行 */
-.fab-stack.moving { opacity: .38 !important; }
-/* ★ v22.3：实在让不开（例如整屏都是录入区）就淡到几乎不可见并放行点击，
-   宁可看不见按钮，也绝不能挡住加号 —— 记录是本分，翻页是便利。 */
-.fab-stack.yield { opacity: .08 !important; pointer-events: none; }
+.fab-stack.moving { opacity: .5; }
+.fab-stack.yield { opacity: 1; pointer-events: auto; }
 .fab-btn {
-  width: 38px; height: 38px;
+  width: 32px; height: 32px;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  color: var(--text);
-  background: rgba(255, 255, 255, .94);
-  border: 1px solid rgba(61, 58, 54, .10);
-  box-shadow: 0 3px 12px rgba(61, 58, 54, .13);
-  transition: transform 150ms var(--ease), opacity 150ms var(--ease), box-shadow 150ms var(--ease);
+  color: #6E6A64;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: transform 150ms var(--ease), opacity 150ms var(--ease), background 150ms var(--ease), color 150ms var(--ease);
 }
-.fab-btn svg { width: 17px; height: 17px; }
+.fab-btn:hover { color: var(--text); background: var(--surface-soft); }
+.fab-btn svg { width: 16px; height: 16px; }
 .fab-btn:active { transform: scale(.92); }
 /* 到顶 / 到底：按钮变淡且点不动，位置仍在，不会跳来跳去 */
-.fab-btn.off { opacity: .32; box-shadow: none; pointer-events: none; }
+.fab-btn.off { opacity: .28; pointer-events: none; }
 .to-top {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 38px;
-  padding: 0 13px 0 10px;
+  gap: 4px;
+  height: 28px;
+  padding: 0 9px 0 6px;
   border-radius: var(--radius-pill);
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 600;
   letter-spacing: .02em;
-  color: var(--text);
-  background: #FFFFFF;
-  border: 1px solid rgba(61, 58, 54, .10);
-  box-shadow: 0 3px 12px rgba(61, 58, 54, .13);
-  transition: transform 150ms var(--ease);
+  color: #6E6A64;
+  background: transparent;
+  border: 1px solid transparent;
+  transition: transform 150ms var(--ease), background 150ms var(--ease), color 150ms var(--ease);
 }
-.to-top svg { width: 15px; height: 15px; flex: none; }
+.to-top:hover { color: var(--text); background: var(--surface-soft); }
+.to-top svg { width: 14px; height: 14px; flex: none; }
 .to-top:active { transform: scale(.95); }
 /* 桌面端：卡片更宽，输入框和字号跟着放大，别让两行元素挤在左边一小坨 */
 @media (min-width: 901px) {
@@ -2275,26 +2286,17 @@ a { color: inherit; text-decoration: none; }
   .sq-tip { font-size: 12px; }
 }
 @media (max-width: 900px) {
-  /* ★ v22.3：贴住屏幕右边缘。
-     实测所有内容（记录行的编辑 / 删除、录入行的输入框和加号）右边缘都在 vw-38，
-     所以占住最右 38px 这条竖带，就等于「永远不挡任何东西」。 */
-  .fab-stack { right: 0; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
-  /* 回首页在手机上收成圆钮，不带文字（文字会把整组撑到 78px，就又压上加号了） */
-  .to-top {
-    width: 38px; height: 38px;
-    padding: 0;
-    justify-content: center;
-    border-radius: 50%;
-    gap: 0;
-  }
+  /* 窄屏顶部条更挤：回首页收成纯图标，把宽度让给日期和时钟 */
+  .to-top { width: 30px; height: 30px; padding: 0; justify-content: center; gap: 0; }
   .to-top span { display: none; }
-  .to-top svg { width: 17px; height: 17px; }
+  .to-top svg { width: 15px; height: 15px; }
+  .fab-stack { gap: 2px; }
 }
 @media (max-width: 560px) {
   .sq-title { font-size: 17.5px; }
   .sq-num { width: 42px; height: 29px; }
   .sq-state { font-size: 11px; }
-  .fab-btn { width: 38px; height: 38px; }
+  .fab-btn { width: 30px; height: 30px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2377,6 +2379,19 @@ a { color: inherit; text-decoration: none; }
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
         <span class="top-date" id="topDate"></span>
+      </div>
+      <!-- v22.4：翻页 / 回首页按钮挪进顶部条中间空档，彻底离开内容区 -->
+      <div class="fab-stack" id="fabStack">
+        <button class="fab-btn" id="btnPageUp" type="button" aria-label="往上翻一屏" title="往上翻一屏">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+        </button>
+        <button class="fab-btn" id="btnPageDown" type="button" aria-label="往下翻一屏" title="往下翻一屏">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <button class="to-top" id="btnToTop" type="button" aria-label="回到首页顶部" title="回到首页">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 10.9 12 3.6l8.8 7.3"/><path d="M5.6 9.7V20.2h12.8V9.7"/></svg>
+          <span>回首页</span>
+        </button>
       </div>
       <div class="top-right">
         <span class="top-clock" id="topClock"></span>
@@ -2968,19 +2983,6 @@ a { color: inherit; text-decoration: none; }
   </div>
 </div>
 
-<!-- v22.2：右下角悬浮操作组（上翻 1.8 屏 / 下翻 1.8 屏 / 回首页），一进页面就常驻 -->
-<div class="fab-stack" id="fabStack">
-  <button class="fab-btn" id="btnPageUp" type="button" aria-label="往上翻一屏" title="往上翻一屏">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
-  </button>
-  <button class="fab-btn" id="btnPageDown" type="button" aria-label="往下翻一屏" title="往下翻一屏">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-  </button>
-  <button class="to-top" id="btnToTop" type="button" aria-label="回到首页顶部" tabindex="-1" title="回到首页">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 10.9 12 3.6l8.8 7.3"/><path d="M5.6 9.7V20.2h12.8V9.7"/></svg>
-    <span>回首页</span>
-  </button>
-</div>
 
 <div class="toast" id="toast" role="status"></div>
 <input type="file" id="fileImport" accept=".json,application/json" hidden>
@@ -6932,73 +6934,6 @@ function updateFab() {
   btnPageUp.tabIndex = canUp ? 0 : -1;
   btnPageDown.tabIndex = canDown ? 0 : -1;
   btnToTop.tabIndex = 0;
-
-  fabAvoid();
-}
-
-/* ★ v22.3：让位 —— 和录入区撞上就整体上移，顶到天花板就淡出放行。
-   只和「录入区」避让：记录行里那些小图标被压一角，滚一下就能点；
-   若把它们也算进来，长列表里根本找不到空位，按钮会永远淡着，等于消失。 */
-const FAB_ZONES = ".note-add, .todo-add, .his-add, .sleep-quick";
-let fabShiftPx = 0;
-let fabYield = false;
-
-function fabApply(shift, yd) {
-  const px = Math.max(0, Math.round(shift));
-  if (px !== fabShiftPx) {
-    fabShiftPx = px;
-    fabStack.style.transform = px ? "translateY(" + (-px) + "px)" : "";
-  }
-  if (yd !== fabYield) {
-    fabYield = yd;
-    fabStack.classList.toggle("yield", yd);
-  }
-}
-
-function fabAvoid() {
-  if (!fabStack) return;
-  const cs = getComputedStyle(fabStack);
-  const right = parseFloat(cs.right) || 0;
-  const bottom = parseFloat(cs.bottom) || 0;
-  const w = fabStack.offsetWidth;
-  const h = fabStack.offsetHeight;
-  if (!w || !h) return;
-
-  const vh = window.innerHeight || 640;
-  const vw = window.innerWidth || 360;
-  const left = vw - right - w;
-  const rEdge = vw - right;
-  const baseTop = vh - bottom - h;
-
-  const zones = document.querySelectorAll(FAB_ZONES);
-  let top = baseTop;
-  for (let pass = 0; pass < 3; pass++) {
-    let move = 0;
-    for (let i = 0; i < zones.length; i++) {
-      const r = zones[i].getBoundingClientRect();
-      if (r.height < 10 || r.bottom <= 0 || r.top >= vh) continue;
-      if (r.right <= left + 4 || r.left >= rEdge - 4) continue;
-      if (r.bottom <= top - 4 || r.top >= top + h - 4) continue;
-      move = Math.max(move, top + h - r.top + 10);
-    }
-    if (move <= 4) break;
-    top -= move;
-  }
-
-  let shift = baseTop - top;
-  let yd = false;
-  if (top < 6) {
-    shift = baseTop - 6;
-    /* 顶到天花板还压着录入区，就别硬撑了 */
-    const t2 = 6;
-    for (let i = 0; i < zones.length; i++) {
-      const r = zones[i].getBoundingClientRect();
-      if (r.bottom <= t2 + 4 || r.top >= t2 + h - 4) continue;
-      if (r.right <= left + 4 || r.left >= rEdge - 4) continue;
-      yd = true; break;
-    }
-  }
-  fabApply(shift, yd);
 }
 
 function fabRefresh() { if (window.__fabRefresh) window.__fabRefresh(); }
@@ -8971,7 +8906,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v22.3 · 2026-11-14");
+    add("版本", "v22.4 · 2026-11-14");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
