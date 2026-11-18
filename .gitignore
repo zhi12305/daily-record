@@ -4,3 +4,5 @@ patch-*.js
 test-*.js
 node_modules/
 *.bak
+package.json
+package-lock.json

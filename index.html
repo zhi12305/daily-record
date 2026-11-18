@@ -376,12 +376,12 @@ a { color: inherit; text-decoration: none; }
 }
 
 .add-btn {
-  width: 40px; height: 40px;
+  width: 44px; height: 44px;
   flex: none;
   border-radius: 50%;
   background: var(--accent);
   color: #FFFFFF;
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
   display: grid; place-items: center;
   box-shadow: var(--shadow-btn);
@@ -717,6 +717,10 @@ a { color: inherit; text-decoration: none; }
 .tl-item.ti .tl-word { color: var(--text-2); }
 .tl-item.ti.done .tl-word { text-decoration: line-through; color: var(--text-3); }
 .tl-item.ti.done .ti-mark { color: var(--accent-deep); }
+/* v24 进行中：文字用主题色加重，圆点一眼看出「在做这件事」 */
+.tl-item.ti.st-doing .tl-word { color: var(--accent-deep); font-weight: 550; }
+.tl-item.ti.st-doing .ti-mark { color: var(--accent); }
+.ti-pill.st-doing, .tl-item.ti.st-doing .ti-pill { color: var(--accent-deep); }
 .ti-mark {
   width: 20px; height: 20px;
   flex: none;
@@ -1508,6 +1512,16 @@ a { color: inherit; text-decoration: none; }
 
 .todo-text { flex: 1; min-width: 0; font-size: 14.5px; word-break: break-all; transition: color var(--dur) var(--ease); }
 .todo-item.done .todo-text { color: var(--text-3); text-decoration: line-through; text-decoration-color: var(--text-3); }
+/* v24 进行中：勾选框描边变主题色 + 框内圆点，文字加重 */
+.todo-item.st-doing .todo-text { color: var(--accent-deep); font-weight: 550; }
+.todo-item.st-doing .todo-check .box { border-color: var(--accent); }
+.todo-item.st-doing .todo-check .box::after {
+  content: ""; position: absolute; left: 50%; top: 50%;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--accent); transform: translate(-50%, -50%);
+}
+.his-row.ti.st-doing .w { color: var(--accent-deep); font-weight: 550; }
+.his-row.ti.st-doing .ti-mark { color: var(--accent); }
 
 .todo-del {
   width: 26px; height: 26px;
@@ -2440,6 +2454,64 @@ a { color: inherit; text-decoration: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+/* ==================== v24：复盘 · 关键词标色 · 记账提醒 · 食堂 ==================== */
+/* 关键词标色：警示=红、积极=绿，其余记录不变色 */
+.tl-word.sent-warn, .his-row .w.sent-warn, .rv-sent-warn { color: #B4544E; }
+.tl-word.sent-good, .his-row .w.sent-good, .rv-sent-good { color: #4E7F57; }
+#view-review  .view-head h2::before { background: var(--m-rose); }
+#view-canteen .view-head h2::before { background: var(--m-sage); }
+
+/* 复盘页 */
+.rv-sec-title { font-size: 14.5px; font-weight: 600; margin-bottom: 6px; }
+.rv-daynav { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rv-daynav .rv-date { flex: 1; text-align: center; font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-daynav .ghost-btn { padding: 5px 8px; flex: none; }
+.rv-backtoday { text-align: center; margin-bottom: 12px; }
+.rv-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.rv-cell { background: var(--surface-soft); border-radius: 10px; padding: 9px 10px; min-width: 0; }
+.rv-cell .k { font-size: 11.5px; color: var(--text-3); margin-bottom: 3px; }
+.rv-cell .v { font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rv-cell .v.warn { color: #B4544E; }
+.rv-cell .v.good { color: #4E7F57; }
+.rv-insight { font-size: 13.5px; line-height: 1.55; background: var(--accent-soft); color: var(--accent-deep); border-radius: 10px; padding: 10px 12px; margin-bottom: 12px; }
+.rv-list-t { font-size: 12px; color: var(--text-3); margin: 10px 0 4px; }
+.rv-line { display: flex; gap: 8px; font-size: 13.5px; padding: 3px 0; }
+.rv-line .tm { color: var(--text-3); font-variant-numeric: tabular-nums; flex: none; }
+.rv-line.sent-warn { color: #B4544E; }
+.rv-line.sent-good { color: #4E7F57; }
+.rv-wordrow { margin-bottom: 14px; }
+.rv-wordrow > .lbl { display: block; font-size: 12.5px; color: var(--text-2); margin-bottom: 6px; }
+.rv-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.rv-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 999px; border: 1.5px solid var(--line); background: #FFFFFF; font-size: 12.5px; }
+.rv-chip button { display: grid; place-items: center; width: 16px; height: 16px; color: var(--text-3); font-size: 14px; line-height: 1; }
+.rv-chip.warn { color: #B4544E; border-color: rgba(180, 84, 78, .45); }
+.rv-chip.good { color: #4E7F57; border-color: rgba(78, 127, 87, .45); }
+.rv-switch { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin-bottom: 8px; }
+.rv-switch input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; }
+
+/* 食堂饭菜 */
+.ct-meal { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+.ct-meal.saved { border-color: var(--m-sage); }
+.ct-meal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.ct-meal-name { font-weight: 600; font-size: 14.5px; }
+.ct-meal-state { margin-left: auto; font-size: 11.5px; color: var(--text-3); }
+.ct-sub { font-size: 12px; color: var(--text-3); margin: 10px 0 5px; }
+.ct-chiprow { display: flex; flex-wrap: wrap; gap: 6px; }
+.ct-chip { padding: 6px 11px; border-radius: 999px; border: 1.5px solid var(--line); background: #FFFFFF; font-size: 13px; line-height: 1.2; }
+.ct-chip.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-deep); font-weight: 550; }
+.ct-dishpick { max-height: 140px; overflow-y: auto; -webkit-overflow-scrolling: touch; margin-bottom: 4px; }
+.ct-quick { display: flex; gap: 8px; margin: 8px 0 4px; }
+.ct-quick > .mg-add { flex: 1 1 0; min-width: 0; } /* 不然表单按内容最小宽度撑破屏幕 */
+.ct-quick input { flex: 1; min-width: 0; }
+.ct-photo { display: flex; align-items: center; gap: 10px; margin: 10px 0 4px; }
+.ct-photo img { width: 62px; height: 62px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); flex: none; }
+.ct-photo-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ct-photo-btns .ghost-btn { padding: 8px 12px; font-size: 13px; background: var(--surface-soft); }
+.ct-note { width: 100%; margin: 10px 0; }
+.ct-save { width: 100%; padding: 11px; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-size: 14.5px; font-weight: 600; }
+.ct-save:active { transform: scale(.98); }
+.ct-del { margin-top: 8px; width: 100%; padding: 8px; border-radius: 10px; color: var(--danger-deep); background: rgba(196, 148, 148, .12); font-size: 13px; }
+.ct-sel { font-size: 13.5px; padding: 8px 10px; border-radius: 10px; border: 1.5px solid var(--line); background: #FFFFFF; max-width: 45%; }
 </style>
 </head>
 <body>
@@ -2485,6 +2557,14 @@ a { color: inherit; text-decoration: none; }
       <a class="nav-item" href="#/health" data-view="health" title="健康数据">
         <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5S4 15.6 4 10.2A4.4 4.4 0 0 1 12 7.6a4.4 4.4 0 0 1 8 2.6c0 5.4-8 10.3-8 10.3Z"/><path d="m8.6 13.2 1.9-2.2 1.7 1.9 2.3-3.4"/></svg>
         <span class="label">健康数据</span>
+      </a>
+      <a class="nav-item" href="#/review" data-view="review" title="复盘">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V11"/><path d="M10 20V4"/><path d="M16 20v-5"/><path d="M2.5 20h19"/></svg>
+        <span class="label">复盘</span>
+      </a>
+      <a class="nav-item" href="#/canteen" data-view="canteen" title="食堂饭菜">
+        <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5h16a8 8 0 0 1-16 0Z"/><path d="M9 8.5c0-1.2 1-1.4 1-2.6M13.5 8.5c0-1.2 1-1.4 1-2.6"/></svg>
+        <span class="label">食堂饭菜</span>
       </a>
     </nav>
 
@@ -2587,7 +2667,7 @@ a { color: inherit; text-decoration: none; }
         </div>
         <form class="note-add has-clock" id="noteForm" autocomplete="off">
           <button type="button" class="clock-btn" data-clock data-back-open aria-label="选择要记到的时间" title="记到别的时间点（如刚才 14:20）">现在</button>
-          <input id="noteInput" class="pill-input" type="text" placeholder="记录点什么…，回车保存" data-ph="记录点什么…，回车保存" maxlength="60">
+          <input id="noteInput" class="pill-input" type="text" placeholder="记录点什么…，点 + 保存" data-ph="记录点什么…，点 + 保存" maxlength="60">
           <button type="button" class="ghost-btn span-btn" id="btnSpanStart" title="用输入框里的文字开始一个期间（一心多用）">期间</button>
           <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
         </form>
@@ -2600,7 +2680,7 @@ a { color: inherit; text-decoration: none; }
         <div class="back-badge" id="backBadge" hidden></div>
         <form class="note-add todo-add" id="todoInlineForm" autocomplete="off">
           <span class="ti-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/></svg></span>
-          <input id="todoInlineInput" class="pill-input" type="text" placeholder="添加当天待办，回车保存" maxlength="60">
+          <input id="todoInlineInput" class="pill-input" type="text" placeholder="添加当天待办，点 + 保存" maxlength="60">
           <button type="submit" class="add-btn ti-add" aria-label="保存待办">+</button>
         </form>
         <div class="timeline" id="timeline"></div>
@@ -2729,7 +2809,7 @@ a { color: inherit; text-decoration: none; }
       <div class="card">
         <form class="memo-add" id="memoForm" autocomplete="off">
           <textarea id="memoInput" class="memo-input" rows="2" maxlength="2000"
-            placeholder="随手记一个想法…（回车保存，Shift + 回车换行）"
+            placeholder="随手记一个想法…，写完点 + 保存"
             aria-label="写下一个想法"></textarea>
           <button type="submit" class="add-btn" aria-label="保存想法">+</button>
         </form>
@@ -2751,13 +2831,93 @@ a { color: inherit; text-decoration: none; }
       </header>
       <div class="card">
         <form class="todo-add" id="todoForm" autocomplete="off">
-          <input id="todoInput" class="pill-input" type="text" placeholder="写点什么，回车添加…" maxlength="80">
+          <input id="todoInput" class="pill-input" type="text" placeholder="写点什么，点 + 添加…" maxlength="80">
           <button type="submit" class="add-btn" aria-label="添加待办">+</button>
         </form>
         <div class="todo-groups" id="todoList"></div>
         <div class="todo-foot" id="todoFoot" hidden>
           <button class="ghost-btn danger" id="btnClear">清空已完成</button>
         </div>
+      </div>
+    </section>
+
+    <!-- 视图八：复盘 -->
+    <section class="view" id="view-review">
+      <header class="view-head">
+        <h2>复盘</h2>
+        <div class="head-right"><span class="view-sub">每天自动汇总，打开即最新</span></div>
+      </header>
+      <div class="card">
+        <div class="rv-daynav">
+          <button type="button" class="ghost-btn" id="rvPrev">← 前一天</button>
+          <span class="rv-date" id="rvDate"></span>
+          <button type="button" class="ghost-btn" id="rvNext">后一天 →</button>
+        </div>
+        <div class="rv-backtoday"><button type="button" class="ghost-btn" id="rvToday" hidden>回到今天</button></div>
+        <div id="rvBody"></div>
+      </div>
+      <div class="card">
+        <h3 class="rv-sec-title">关键词标色</h3>
+        <p class="modal-sub">记录里出现这些词会变色：警示词标红、积极词标绿，其余不变</p>
+        <div class="rv-wordrow">
+          <span class="lbl rv-sent-warn">警示词（标红）</span>
+          <div class="rv-chips" id="rvWarnList"></div>
+          <form class="mg-add" id="rvWarnForm" autocomplete="off">
+            <input id="rvWarnInput" class="pill-input" type="text" maxlength="10" placeholder="如：刷手机">
+            <button type="submit" class="add-btn" aria-label="添加警示词">+</button>
+          </form>
+        </div>
+        <div class="rv-wordrow">
+          <span class="lbl rv-sent-good">积极词（标绿）</span>
+          <div class="rv-chips" id="rvGoodList"></div>
+          <form class="mg-add" id="rvGoodForm" autocomplete="off">
+            <input id="rvGoodInput" class="pill-input" type="text" maxlength="10" placeholder="如：学习">
+            <button type="submit" class="add-btn" aria-label="添加积极词">+</button>
+          </form>
+        </div>
+        <div class="rv-wordrow">
+          <span class="lbl">记账提醒</span>
+          <label class="rv-switch"><input type="checkbox" id="lgPromptOn"><span>记录出现触发词时，弹出记账确认</span></label>
+          <div class="rv-chips" id="lgPromptWordList"></div>
+          <form class="mg-add" id="lgPromptWordForm" autocomplete="off">
+            <input id="lgPromptWordInput" class="pill-input" type="text" maxlength="6" placeholder="触发词，如：买">
+            <button type="submit" class="add-btn" aria-label="添加触发词">+</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- 视图九：食堂饭菜 -->
+    <section class="view" id="view-canteen">
+      <header class="view-head">
+        <h2>食堂饭菜</h2>
+        <div class="head-right"><span class="count" id="ctCount"></span></div>
+      </header>
+      <div class="card">
+        <div class="rv-daynav">
+          <button type="button" class="ghost-btn" id="ctPrev">← 前一天</button>
+          <span class="rv-date" id="ctDate"></span>
+          <button type="button" class="ghost-btn" id="ctNext">后一天 →</button>
+        </div>
+        <div class="rv-backtoday"><button type="button" class="ghost-btn" id="ctToday" hidden>回到今天</button></div>
+        <div id="ctMeals"></div>
+      </div>
+      <div class="card">
+        <h3 class="rv-sec-title">我的食堂 &amp; 菜品库</h3>
+        <form class="mg-add" id="ctCanteenForm" autocomplete="off">
+          <input id="ctCanteenInput" class="pill-input" type="text" maxlength="12" placeholder="新增食堂，如「一食堂」">
+          <button type="submit" class="add-btn" aria-label="新增食堂">+</button>
+        </form>
+        <div class="rv-chips" id="ctCanteenList"></div>
+        <div class="ct-quick" style="margin-top:10px;">
+          <select id="ctDishCanteen" class="ct-sel" aria-label="菜品归属食堂"></select>
+          <form class="mg-add" id="ctDishForm" autocomplete="off" style="flex:1; margin-bottom:0;">
+            <input id="ctDishInput" class="pill-input" type="text" maxlength="16" placeholder="新增菜品，如「番茄炒蛋」">
+            <button type="submit" class="add-btn" aria-label="新增菜品">+</button>
+          </form>
+        </div>
+        <div class="rv-chips" id="ctDishList"></div>
+        <p class="modal-sub" style="margin-top:8px;">照片只存在这台设备上、不上云；本地存满 60 张会自动清理最旧的。</p>
       </div>
     </section>
 
@@ -3150,6 +3310,29 @@ a { color: inherit; text-decoration: none; }
 
 
 <div class="toast" id="toast" role="status"></div>
+<!-- v24：关键词触发记账确认弹窗（金额/备注自动预填，点确认才入账） -->
+<div class="modal-mask" id="lgPromptModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lgPromptTitle">
+    <h3 id="lgPromptTitle">记一笔账？</h3>
+    <p class="modal-sub" id="lgPromptSrc"></p>
+    <form id="lgPromptFormModal" autocomplete="off">
+      <div class="edit-field">
+        <span class="lbl">金额</span>
+        <input id="lgPromptAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="0.00">
+      </div>
+      <div class="edit-field">
+        <span class="lbl">备注</span>
+        <input id="lgPromptNote" type="text" maxlength="30" placeholder="买了什么">
+      </div>
+      <div class="cat-row" id="lgPromptCats"><span class="lbl">分类</span></div>
+      <div class="mg-foot">
+        <button type="button" class="ghost-btn" id="lgPromptSkip">跳过</button>
+        <button type="submit" class="primary-btn" id="lgPromptSave">记入账本</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <input type="file" id="fileImport" accept=".json,application/json" hidden>
 
 <script>
@@ -3212,17 +3395,26 @@ function defaultSync() {
 function defaultState() {
   return {
     version: 2,
-    ui: { sidebarCollapsed: false, lastNudge: 0, showMoves: true, wordsFolded: false },
+    ui: { sidebarCollapsed: false, lastNudge: 0, showMoves: true, wordsFolded: false, lgPromptOn: true },
     words: DEFAULT_WORDS.map((w, i) => ({ id: "w" + (i + 1), text: w.text, color: w.color })),
     places: DEFAULT_PLACES.map((p, i) => ({ id: "p" + (i + 1), name: p })), // 识别地址库
     records: [],   // { id, wordId, wordText, color, combo, placeId, noPlace, spanId, ts }
     spans: [],     // 期间（一心多用）：{ id, title, startTs, endTs }  endTs 为 0/空 = 进行中
-    todos: [],     // { id, text, done, createdAt }
+    todos: [],     // { id, text, status: "todo"|"doing"|"done", done, createdAt }  done 与 status 保持同步，兼容旧代码
     ledger: [],    // { id, type, amount, category, note, ts }
     ledgerCats: LEDGER_CATS.map(c => ({ key: c.key, name: c.name, color: c.color })), // 可自定义分类
     comps: [],     // { id, name, url, deadline, poster, note, createdAt }  deadline = "YYYY-MM-DD"
     health: [],    // { id, date, sleep, nap, hr }  sleep/nap 分钟、hr 次/分；未填为 null
     memos: [],     // 备忘录：{ id, text, createdAt, updatedAt }  想法按天归类
+    /* v24 复盘：关键词标色 + 记账触发词（以 {name} 对象存，走 SYNC_KEYS 并集同步） */
+    sentWarn: ["刷手机", "抖音", "刷抖音", "玩游戏", "游戏", "追剧", "刷剧", "刷视频", "看小说", "逛淘宝", "快手"].map(name => ({ name })),
+    sentGood: ["学习", "读书", "看书", "健身", "跑步", "锻炼", "运动", "背单词", "上课", "复习", "做题", "写作", "练琴"].map(name => ({ name })),
+    lgPromptWords: ["买", "花", "付", "付款", "块", "¥"].map(name => ({ name })),
+    /* v24 食堂饭菜：canteens/dishes/meals 进云同步；mealPhotos 只存本机、绝不上云 */
+    canteens: [],  // { id, name, createdAt }
+    dishes: [],    // { id, canteenId, name, createdAt, updatedAt }
+    meals: [],     // { id, date: "YYYY-MM-DD", meal: "b"|"l"|"d", canteenId, dishIds: [], note, createdAt, updatedAt }
+    mealPhotos: {}, // { [mealId]: dataURL }  —— 仅本机，toCloudPayload 显式排除
     sync: defaultSync(), // 云同步连接信息（仅本地，不推云端）
   };
 }
@@ -3301,6 +3493,16 @@ function normalizeSync(v) {
   return d;
 }
 
+/* v24：词表规范化（{name} 对象数组；兼容纯字符串、去重、限长） */
+function normWordList(arr, maxLen) {
+  const seen = new Set();
+  const out = [];
+  (Array.isArray(arr) ? arr : []).forEach(x => {
+    const name = String((x && typeof x === "object") ? x.name : x).trim().slice(0, maxLen || 10);
+    if (name && !seen.has(name)) { seen.add(name); out.push({ name }); }
+  });
+  return out;
+}
 function normalizeState(d) {
   const s = defaultState();
   if (!d || typeof d !== "object") return s;
@@ -3309,16 +3511,38 @@ function normalizeState(d) {
     s.ui.wordsFolded = !!d.ui.wordsFolded; /* 高频词收起状态：刷新后保持 */
     s.ui.lastNudge = Number(d.ui.lastNudge) > 0 ? Math.floor(Number(d.ui.lastNudge)) : 0;
     s.ui.showMoves = d.ui.showMoves !== false;
+    s.ui.lgPromptOn = d.ui.lgPromptOn !== false; /* v24 记账提醒开关：默认开，老数据视为开 */
   }
   if (Array.isArray(d.words))   s.words   = d.words.filter(w => w && typeof w.text === "string").map(w => ({ id: String(w.id || uid()), text: w.text.slice(0, 10), color: validColor(w.color) }));
   if (Array.isArray(d.places))  s.places  = d.places.filter(p => p && typeof p.name === "string" && p.name.trim()).map(p => ({ id: String(p.id || uid()), name: p.name.trim().slice(0, 12) }));
   if (Array.isArray(d.records)) s.records = d.records.filter(r => r && typeof r.ts === "number").map(r => ({ id: String(r.id || uid()), wordId: String(r.wordId || ""), wordText: String(r.wordText || "").slice(0, 60), color: validColor(r.color), combo: !!r.combo, placeId: String(r.placeId || ""), noPlace: !!r.noPlace, spanId: String(r.spanId || ""), ts: r.ts }));
   /* 期间（一心多用）：标题必填、时间合法才保留 */
   if (Array.isArray(d.spans)) s.spans = d.spans.filter(sp => sp && typeof sp.title === "string" && sp.title.trim() && typeof sp.startTs === "number").map(sp => ({ id: String(sp.id || uid()), title: sp.title.trim().slice(0, 20), startTs: sp.startTs, endTs: Number(sp.endTs) > 0 ? Math.floor(Number(sp.endTs)) : 0, placeId: String(sp.placeId || ""), noPlace: !!sp.noPlace }));
-  if (Array.isArray(d.todos))   s.todos   = d.todos.filter(t => t && typeof t.text === "string").map(t => ({ id: String(t.id || uid()), text: t.text.slice(0, 80), done: !!t.done, createdAt: Number(t.createdAt) || Date.now() }));
+  if (Array.isArray(d.todos))   s.todos   = d.todos.filter(t => t && typeof t.text === "string").map(t => {
+    /* v24：三态（待办/进行中/完成）。老数据只有 done 布尔 → 换算成状态，不丢任何历史 */
+    const st = (t.status === "doing" || t.status === "done") ? t.status : (!!t.done ? "done" : "todo");
+    return { id: String(t.id || uid()), text: t.text.slice(0, 80), status: st, done: st === "done", createdAt: Number(t.createdAt) || Date.now() };
+  });
   if (Array.isArray(d.comps))   s.comps   = d.comps.filter(c => c && typeof c.name === "string" && c.name.trim()).map(c => ({ id: String(c.id || uid()), name: c.name.trim().slice(0, 40), url: String(c.url || "").slice(0, 300), deadline: validDate(c.deadline), poster: typeof c.poster === "string" ? c.poster.slice(0, 300000) : "", note: String(c.note || "").slice(0, 30), createdAt: Number(c.createdAt) || Date.now() }));
   if (Array.isArray(d.memos))   s.memos   = d.memos.filter(m => m && typeof m.text === "string" && m.text.trim()).map(m => ({ id: String(m.id || uid()), text: m.text.slice(0, 2000), createdAt: Number(m.createdAt) || Date.now(), updatedAt: Number(m.updatedAt) || 0 }));
   if (Array.isArray(d.health))  s.health  = d.health.filter(h => h && validDate(h.date)).map(h => ({ id: String(h.id || uid()), date: validDate(h.date), sleep: Number(h.sleep) > 0 ? clampNum(h.sleep, 0, 24 * 60) : null, nap: Number(h.nap) > 0 ? clampNum(h.nap, 0, 720) : null, hr: Number(h.hr) > 0 ? clampNum(h.hr, 30, 220) : null }));
+  /* v24：复盘词表 / 记账触发词（老数据没有就用默认值，见 defaultState） */
+  if (Array.isArray(d.sentWarn))      s.sentWarn      = normWordList(d.sentWarn);
+  if (Array.isArray(d.sentGood))      s.sentGood      = normWordList(d.sentGood);
+  if (Array.isArray(d.lgPromptWords)) s.lgPromptWords = normWordList(d.lgPromptWords, 6);
+  /* v24：食堂饭菜 */
+  if (Array.isArray(d.canteens)) s.canteens = d.canteens.filter(c => c && typeof c.name === "string" && c.name.trim()).map(c => ({ id: String(c.id || uid()), name: c.name.trim().slice(0, 12), createdAt: Number(c.createdAt) || Date.now() }));
+  if (Array.isArray(d.dishes))   s.dishes   = d.dishes.filter(x => x && typeof x.name === "string" && x.name.trim()).map(x => ({ id: String(x.id || uid()), canteenId: String(x.canteenId || ""), name: x.name.trim().slice(0, 16), createdAt: Number(x.createdAt) || Date.now(), updatedAt: Number(x.updatedAt) || 0 }));
+  if (Array.isArray(d.meals))    s.meals    = d.meals.filter(x => x && validDate(x.date) && ["b", "l", "d"].indexOf(x.meal) >= 0).map(x => ({ id: String(x.id || uid()), date: validDate(x.date), meal: x.meal, canteenId: String(x.canteenId || ""), dishIds: Array.isArray(x.dishIds) ? x.dishIds.map(String).slice(0, 20) : [], note: String(x.note || "").slice(0, 60), createdAt: Number(x.createdAt) || Date.now(), updatedAt: Number(x.updatedAt) || 0 }));
+  /* 饭菜照片：白名单重建，只认 data:image，单张限 120KB（压缩后的尺寸） */
+  if (d.mealPhotos && typeof d.mealPhotos === "object" && !Array.isArray(d.mealPhotos)) {
+    const mp = {};
+    Object.keys(d.mealPhotos).forEach(k => {
+      const v = d.mealPhotos[k];
+      if (typeof v === "string" && v.slice(0, 10) === "data:image") mp[String(k)] = v.slice(0, 120000);
+    });
+    s.mealPhotos = mp;
+  }
   /* 记账分类：自定义列表（老数据没有该字段时用默认，并保证"其他"始终存在）
      注意：必须放在账目 ledger 之前解析，因为账目分类要按这张表校验 */
   if (Array.isArray(d.ledgerCats)) {
@@ -3648,7 +3872,7 @@ document.getElementById("btnCollapse").addEventListener("click", () => {
   applySidebar();
 });
 
-const VIEWS = ["record", "history", "memo", "ledger", "todo", "comps", "health"];
+const VIEWS = ["record", "history", "memo", "ledger", "todo", "comps", "health", "review", "canteen"];
 function route() {
   const v = (location.hash || "").replace(/^#\/?/, "");
   const name = VIEWS.includes(v) ? v : "record";
@@ -3668,6 +3892,9 @@ function route() {
   if (name === "todo") renderTodos();
   if (name === "comps") renderComps();
   if (name === "health") renderHealth();
+  /* v24：复盘 + 食堂饭菜 */
+  if (name === "review") renderReview();
+  if (name === "canteen") renderCanteen();
   /* 换页后内容高度变了，悬浮组重新算一次让位 */
   fabRefresh();
 }
@@ -3886,6 +4113,8 @@ function pushRecord(fields) {
   const as = activeSpan();
   if (as && ts >= as.startTs) rec.spanId = as.id;
   state.records.push(rec);
+  /* v24：含「买」等触发词 → 稍后弹记账确认（只在本机录入时触发） */
+  maybeLedgerPrompt(rec);
   /* 补记模式：时间往后走一分钟，连续补记按顺序排列，不会堆在同一个点 */
   if (isFinite(backTs) && backTs) { backTs = Math.min(backTs + 60000, Date.now()); backSyncTrigger(); }
   saveState();
@@ -4665,6 +4894,9 @@ function buildRecRow(r, diffText, flashId) {
 
   const word = document.createElement("span");
   word.className = "tl-word" + (r.wordId ? "" : " note");
+  /* v24：关键词标色（警示红 / 积极绿） */
+  const recSent = sentimentOf(r.wordText);
+  if (recSent) word.classList.add("sent-" + recSent);
   word.textContent = r.wordText;
 
   row.append(dot, time, word);
@@ -4713,16 +4945,17 @@ function buildRecRow(r, diffText, flashId) {
 
 function buildTodoRow(t, flashId) {
   const row = document.createElement("div");
-  row.className = "tl-item ti" + (t.done ? " done" : "");
+  const st = todoStatusOf(t);
+  row.className = "tl-item ti st-" + st + (st === "done" ? " done" : "");
   row.dataset.id = t.id;
   if (t.id === flashId) row.classList.add("enter");
 
   const mark = document.createElement("button");
   mark.type = "button";
   mark.className = "ti-mark";
-  mark.setAttribute("aria-label", t.done ? "标记为未完成" : "完成这项待办");
-  /* 未完成 = 空方框；完成 = 方框打勾，状态一眼可辨 */
-  mark.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/>' + (t.done ? '<path d="m8.5 12.2 2.4 2.4 4.6-5"/>' : '') + '</svg>';
+  mark.setAttribute("aria-label", st === "done" ? "标记为未完成" : st === "doing" ? "标记为完成" : "标记为进行中");
+  /* v24 三态：待办 = 空方框；进行中 = 框内圆点；完成 = 打勾 */
+  mark.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/>' + (st === "done" ? '<path d="m8.5 12.2 2.4 2.4 4.6-5"/>' : st === "doing" ? '<circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/>' : '') + '</svg>';
   mark.addEventListener("click", () => toggleTodo(t.id));
 
   const time = document.createElement("span");
@@ -4735,7 +4968,7 @@ function buildTodoRow(t, flashId) {
 
   const pill = document.createElement("span");
   pill.className = "ti-pill";
-  pill.textContent = "待办";
+  pill.textContent = st === "done" ? "完成" : st === "doing" ? "进行中" : "待办";
 
   row.append(mark, time, word, pill);
 
@@ -5016,21 +5249,570 @@ function refreshRecordViews(flashId) {
   renderHistory();
 }
 
+/* ============================================================
+   V24 复盘 · 关键词标色 · 记账提醒 · 食堂饭菜
+   ============================================================ */
+function escHtml(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+/* 关键词情绪判定：命中警示词→"warn"（标红），命中积极词→"good"（标绿），都没有→null */
+function sentimentOf(text) {
+  const t = String(text || "");
+  if (!t) return null;
+  if ((state.sentWarn || []).some(w => w && w.name && t.indexOf(w.name) >= 0)) return "warn";
+  if ((state.sentGood || []).some(w => w && w.name && t.indexOf(w.name) >= 0)) return "good";
+  return null;
+}
+
+/* ---- 记账提醒：记录含触发词 → 弹确认框，金额/备注自动预填，点确认才入账 ---- */
+function lgPromptTriggers() {
+  return (state.lgPromptWords || []).map(w => w && w.name).filter(Boolean);
+}
+/* 从一句话里抽金额和“买了什么”：优先带 元/块/¥ 的数字，否则取最后一个数字 */
+function parseLedgerHint(text, triggers) {
+  const t = String(text || "").trim();
+  let amount = null;
+  const withUnit = t.match(/(\d+(?:\.\d+)?)\s*(?:元|块|¥)/);
+  if (withUnit) amount = parseFloat(withUnit[1]);
+  else {
+    const nums = t.match(/\d+(?:\.\d+)?/g);
+    if (nums && nums.length) amount = parseFloat(nums[nums.length - 1]);
+  }
+  let note = t.replace(/(\d+(?:\.\d+)?)\s*(?:元|块|¥)?/g, " ").trim();
+  (triggers || []).forEach(w => { if (w) note = note.split(w).join(" "); });
+  note = note.replace(/\s+/g, " ").trim().slice(0, 30);
+  return { amount: isFinite(amount) && amount > 0 ? amount : null, note: note };
+}
+let lgPromptCtx = null;
+let lgPromptCat = "food";
+function buildLgPromptCats() {
+  const row = document.getElementById("lgPromptCats");
+  row.querySelectorAll(".cat-chip").forEach(n => n.remove());
+  getCats().forEach(c => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "cat-chip" + (c.key === lgPromptCat ? " sel" : "");
+    chip.style.setProperty("--cc", c.color);
+    const dot = document.createElement("span");
+    dot.className = "dot";
+    const nm = document.createElement("span");
+    nm.textContent = c.name;
+    chip.append(dot, nm);
+    chip.addEventListener("click", () => { lgPromptCat = c.key; buildLgPromptCats(); });
+    row.appendChild(chip);
+  });
+}
+function openLgPrompt(rec) {
+  const hint = parseLedgerHint(rec.wordText, lgPromptTriggers());
+  lgPromptCtx = { ts: rec.ts || Date.now() };
+  document.getElementById("lgPromptSrc").textContent = "这条记录像是在花钱：「" + rec.wordText + "」";
+  const amtEl = document.getElementById("lgPromptAmount");
+  amtEl.value = hint.amount != null ? String(hint.amount) : "";
+  document.getElementById("lgPromptNote").value = hint.note || "";
+  buildLgPromptCats();
+  document.getElementById("lgPromptModal").hidden = false;
+  setTimeout(() => (hint.amount != null ? document.getElementById("lgPromptNote") : amtEl).focus(), 80);
+}
+function closeLgPrompt() {
+  document.getElementById("lgPromptModal").hidden = true;
+  lgPromptCtx = null;
+}
+document.getElementById("lgPromptFormModal").addEventListener("submit", (e) => {
+  e.preventDefault();
+  if (!lgPromptCtx) return closeLgPrompt();
+  const amount = parseFloat(document.getElementById("lgPromptAmount").value);
+  if (!isFinite(amount) || amount <= 0) { toast("请输入有效金额"); return; }
+  state.ledger.push({
+    id: uid(), type: "expense",
+    amount: Math.round(amount * 100) / 100,
+    category: lgPromptCat,
+    note: document.getElementById("lgPromptNote").value.trim(),
+    ts: lgPromptCtx.ts, /* 用记录的时间，账和记录落在同一天 */
+  });
+  saveState();
+  if (document.body.dataset.view === "ledger") renderLedger();
+  toast("已记账 " + fmtMoney(amount));
+  closeLgPrompt();
+});
+document.getElementById("lgPromptSkip").addEventListener("click", closeLgPrompt);
+document.getElementById("lgPromptModal").addEventListener("click", (e) => { if (e.target.id === "lgPromptModal") closeLgPrompt(); });
+
+/* 记录保存后的触发检查（只在本地录入时跑，云同步合并进来的记录不弹） */
+function maybeLedgerPrompt(rec) {
+  try {
+    if (state.ui.lgPromptOn === false) return;
+    if (!rec || !rec.wordText) return;
+    const triggers = lgPromptTriggers();
+    if (!triggers.length || !triggers.some(w => rec.wordText.indexOf(w) >= 0)) return;
+    /* 等本条记录的入场动画落定再弹，不然弹层会盖住刚蹦出来的记录 */
+    setTimeout(() => openLgPrompt(rec), 350);
+  } catch (_) {}
+}
+
+/* ---- 复盘页 ---- */
+let rvDay = dayKey(Date.now());
+function rvShift(days) {
+  const d = new Date(rvDay + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  rvDay = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  renderReview();
+}
+function renderReview() {
+  const k = rvDay;
+  const todayK = dayKey(Date.now());
+  document.getElementById("rvDate").textContent = fmtDayLabel(k) + (k === todayK ? "（今天）" : "");
+  document.getElementById("rvToday").hidden = (k === todayK);
+
+  const recs = state.records.filter(r => recDay(r) === k);
+  const warns = recs.filter(r => sentimentOf(r.wordText) === "warn");
+  const goods = recs.filter(r => sentimentOf(r.wordText) === "good");
+  const led = state.ledger.filter(e => dayKey(e.ts) === k);
+  const exp = led.filter(e => e.type !== "income").reduce((a, e) => a + (Number(e.amount) || 0), 0);
+  const inc = led.filter(e => e.type === "income").reduce((a, e) => a + (Number(e.amount) || 0), 0);
+  const tds = state.todos.filter(t => dayKey(Number(t.createdAt) || Date.now()) === k);
+  const tdsDone = tds.filter(t => todoStatusOf(t) === "done").length;
+  const hp = (state.health || []).find(x => x.date === k);
+  const sleepTxt = hp && hp.sleep ? (Math.floor(hp.sleep / 60) + "h" + (hp.sleep % 60 ? " " + (hp.sleep % 60) + "m" : "")) : "—";
+  const memoN = state.memos.filter(m => dayKey(Number(m.createdAt) || Date.now()) === k).length;
+  const spanN = state.spans.filter(sp => dayKey(Number(sp.startTs) || Date.now()) === k).length;
+
+  let insight;
+  if (warns.length > goods.length) insight = "今天消磨时间的记录偏多（标红 " + warns.length + " 条）。状态不好不用自责，明天先完成一件小事就能转回来。";
+  else if (goods.length > warns.length) insight = "今天状态在线（标绿 " + goods.length + " 条），继续保持这个节奏。";
+  else if (warns.length || goods.length) insight = "今天标红 " + warns.length + " 条、标绿 " + goods.length + " 条，喜忧参半，明天争取绿的多一点。";
+  else insight = "平平淡淡的一天，记录还在坚持就是好事。";
+
+  const cell = (kk, v, cls) => '<div class="rv-cell"><div class="k">' + kk + '</div><div class="v' + (cls ? " " + cls : "") + '">' + v + "</div></div>";
+  let html = '<div class="rv-grid">'
+    + cell("记录", recs.length + " 条")
+    + cell("支出", fmtMoney(exp) + (led.length ? " · " + led.length + "笔" : ""))
+    + cell("收入", fmtMoney(inc))
+    + cell("待办完成", tdsDone + "/" + tds.length)
+    + cell("睡眠", sleepTxt)
+    + cell("备忘 / 期间", memoN + " / " + spanN)
+    + "</div>";
+  html += '<div class="rv-insight">' + insight + "</div>";
+  const block = (title, list, cls) => {
+    if (!list.length) return "";
+    let s = '<div class="rv-list-t">' + title + "（" + list.length + "）</div>";
+    list.forEach(r => { s += '<div class="rv-line ' + cls + '"><span class="tm">' + fmtTime(r.ts) + '</span><span>' + escHtml(r.wordText) + "</span></div>"; });
+    return s;
+  };
+  html += block("标红的记录", warns, "sent-warn");
+  html += block("标绿的记录", goods, "sent-good");
+  if (!recs.length && !led.length && !tds.length) html = '<div class="rv-insight">这一天还没有记录。回到记录台，从一件事开始。</div>';
+  document.getElementById("rvBody").innerHTML = html;
+  renderSentSettings();
+}
+function renderSentSettings() {
+  const renderChips = (elId, arr, cls, onDel) => {
+    const el = document.getElementById(elId);
+    el.innerHTML = "";
+    arr.forEach(w => {
+      const chip = document.createElement("span");
+      chip.className = "rv-chip " + cls;
+      const nm = document.createElement("span");
+      nm.textContent = w.name;
+      const x = document.createElement("button");
+      x.type = "button";
+      x.textContent = "×";
+      x.setAttribute("aria-label", "删除 " + w.name);
+      x.addEventListener("click", () => onDel(w.name));
+      chip.append(nm, x);
+      el.appendChild(chip);
+    });
+  };
+  renderChips("rvWarnList", state.sentWarn, "warn", name => {
+    state.sentWarn = state.sentWarn.filter(w => w.name !== name);
+    saveState(); renderSentSettings(); refreshRecordViews(); renderReview();
+  });
+  renderChips("rvGoodList", state.sentGood, "good", name => {
+    state.sentGood = state.sentGood.filter(w => w.name !== name);
+    saveState(); renderSentSettings(); refreshRecordViews(); renderReview();
+  });
+  renderChips("lgPromptWordList", state.lgPromptWords, "", name => {
+    state.lgPromptWords = state.lgPromptWords.filter(w => w.name !== name);
+    saveState(); renderSentSettings();
+  });
+  document.getElementById("lgPromptOn").checked = state.ui.lgPromptOn !== false;
+}
+const bindWordForm = (formId, inputId, getArr) => {
+  document.getElementById(formId).addEventListener("submit", (e) => {
+    e.preventDefault();
+    const inp = document.getElementById(inputId);
+    const v = inp.value.trim();
+    if (!v) return;
+    const arr = getArr();
+    if (arr.some(w => w.name === v)) { toast("已经有这个词了"); return; }
+    arr.push({ name: v });
+    inp.value = "";
+    saveState(); renderSentSettings(); refreshRecordViews(); renderReview();
+  });
+};
+bindWordForm("rvWarnForm", "rvWarnInput", () => state.sentWarn);
+bindWordForm("rvGoodForm", "rvGoodInput", () => state.sentGood);
+bindWordForm("lgPromptWordForm", "lgPromptWordInput", () => state.lgPromptWords);
+document.getElementById("lgPromptOn").addEventListener("change", (e) => {
+  state.ui.lgPromptOn = !!e.target.checked;
+  saveState();
+  toast(state.ui.lgPromptOn ? "记账提醒已开" : "记账提醒已关");
+});
+document.getElementById("rvPrev").addEventListener("click", () => rvShift(-1));
+document.getElementById("rvNext").addEventListener("click", () => rvShift(1));
+document.getElementById("rvToday").addEventListener("click", () => { rvDay = dayKey(Date.now()); renderReview(); });
+
+/* ---- 食堂饭菜 ---- */
+let ctDay = dayKey(Date.now());
+const MEAL_DEFS = [{ key: "b", name: "早餐" }, { key: "l", name: "午餐" }, { key: "d", name: "晚餐" }];
+const MEAL_PHOTO_CAP = 60;
+function mealOf(date, mealKey) {
+  return state.meals.find(m => m.date === date && m.meal === mealKey) || null;
+}
+function ctShift(days) {
+  const d = new Date(ctDay + "T12:00:00");
+  d.setDate(d.getDate() + days);
+  ctDay = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  renderCanteen();
+}
+/* 本地照片上限：超了按日期清理最旧的，保住本地存储空间 */
+function pruneMealPhotos() {
+  const ids = Object.keys(state.mealPhotos || {});
+  if (ids.length <= MEAL_PHOTO_CAP) return;
+  const byDate = (id) => { const m = state.meals.find(x => x.id === id); return m ? m.date : "0000-00-00"; };
+  ids.sort((a, b) => (byDate(a) < byDate(b) ? -1 : 1));
+  let n = 0;
+  while (ids.length - n > MEAL_PHOTO_CAP) { delete state.mealPhotos[ids[n]]; n++; }
+  if (n > 0) toast("本地照片已达 " + MEAL_PHOTO_CAP + " 张，已自动清理 " + n + " 张最旧的");
+}
+function buildMealCard(def, saved) {
+  const card = document.createElement("div");
+  card.className = "ct-meal" + (saved ? " saved" : "");
+  const selCanteen = { v: saved ? String(saved.canteenId || "") : "" };
+  const onIds = new Set(saved ? (saved.dishIds || []).filter(id => state.dishes.some(d => d.id === id)) : []);
+  let photoData;                                  /* undefined=不改 null=删 string=新图 */
+  let photoCur = saved ? (state.mealPhotos[saved.id] || null) : null;
+
+  const head = document.createElement("div");
+  head.className = "ct-meal-head";
+  const nm = document.createElement("span");
+  nm.className = "ct-meal-name";
+  nm.textContent = def.name;
+  const stateSpan = document.createElement("span");
+  stateSpan.className = "ct-meal-state";
+  stateSpan.textContent = saved ? "已记录" : "还没记";
+  head.append(nm, stateSpan);
+
+  const sub1 = document.createElement("div");
+  sub1.className = "ct-sub";
+  sub1.textContent = "在哪个食堂";
+  const cantRow = document.createElement("div");
+  cantRow.className = "ct-chiprow";
+  const renderCant = () => {
+    cantRow.innerHTML = "";
+    const mk = (id, label) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ct-chip" + (selCanteen.v === id ? " on" : "");
+      b.textContent = label;
+      b.addEventListener("click", () => { selCanteen.v = id; renderCant(); renderDishes(); });
+      cantRow.appendChild(b);
+    };
+    mk("", "不限 / 没选");
+    state.canteens.forEach(c => mk(c.id, c.name));
+  };
+
+  const sub2 = document.createElement("div");
+  sub2.className = "ct-sub";
+  sub2.textContent = "吃了什么（点多选）";
+  const dishWrap = document.createElement("div");
+  dishWrap.className = "ct-dishpick";
+  const dishRow = document.createElement("div");
+  dishRow.className = "ct-chiprow";
+  dishWrap.appendChild(dishRow);
+  const renderDishes = () => {
+    dishRow.innerHTML = "";
+    const list = state.dishes.filter(d => !selCanteen.v || d.canteenId === selCanteen.v || !state.canteens.some(c => c.id === d.canteenId));
+    if (!list.length) {
+      const em = document.createElement("span");
+      em.className = "ct-meal-state";
+      em.textContent = "这里还没有菜品，用下面「快速加菜」添一个";
+      dishRow.appendChild(em);
+      return;
+    }
+    list.forEach(d => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "ct-chip" + (onIds.has(d.id) ? " on" : "");
+      b.textContent = d.name;
+      b.addEventListener("click", () => {
+        if (onIds.has(d.id)) { onIds.delete(d.id); b.classList.remove("on"); }
+        else { onIds.add(d.id); b.classList.add("on"); }
+      });
+      dishRow.appendChild(b);
+    });
+  };
+
+  const quick = document.createElement("div");
+  quick.className = "ct-quick";
+  const qInput = document.createElement("input");
+  qInput.className = "pill-input";
+  qInput.maxLength = 16;
+  qInput.placeholder = "快速加菜，如「宫保鸡丁」";
+  const qBtn = document.createElement("button");
+  qBtn.type = "button";
+  qBtn.className = "ghost-btn";
+  qBtn.textContent = "加菜";
+  qBtn.style.cssText = "padding:8px 14px; font-size:13px; background:var(--surface-soft); flex:none;";
+  quick.append(qInput, qBtn);
+  qBtn.addEventListener("click", () => {
+    const name = qInput.value.trim();
+    if (!name) return;
+    const d = { id: uid(), canteenId: selCanteen.v, name: name.slice(0, 16), createdAt: Date.now(), updatedAt: Date.now() };
+    state.dishes.push(d);
+    saveState();
+    onIds.add(d.id);
+    qInput.value = "";
+    renderDishes();
+    renderCanteenManage();
+    toast("已加菜「" + d.name + "」");
+  });
+
+  const sub3 = document.createElement("div");
+  sub3.className = "ct-sub";
+  sub3.textContent = "照片（可选，只存这台手机、不上云）";
+  const photoRow = document.createElement("div");
+  photoRow.className = "ct-photo";
+  const img = document.createElement("img");
+  img.alt = "饭菜照片";
+  const photoBtns = document.createElement("div");
+  photoBtns.className = "ct-photo-btns";
+  const pickBtn = document.createElement("button");
+  pickBtn.type = "button";
+  pickBtn.className = "ghost-btn";
+  const delPhotoBtn = document.createElement("button");
+  delPhotoBtn.type = "button";
+  delPhotoBtn.className = "ghost-btn";
+  delPhotoBtn.textContent = "移除照片";
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.accept = "image/*";
+  fileInput.hidden = true;
+  const renderPhoto = () => {
+    const cur = photoData === undefined ? photoCur : (photoData === null ? null : photoData);
+    img.src = cur || "";
+    img.style.display = cur ? "" : "none";
+    pickBtn.textContent = cur ? "换一张" : "拍照 / 选图";
+    delPhotoBtn.hidden = !cur;
+  };
+  pickBtn.addEventListener("click", () => fileInput.click());
+  delPhotoBtn.addEventListener("click", () => { photoData = null; renderPhoto(); });
+  fileInput.addEventListener("change", () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      /* 360px / 0.6：一张约 20-40KB，60 张上限约占 2MB 本地空间 */
+      compressImage(reader.result, 360, 0.6).then(url => { photoData = url; renderPhoto(); });
+    };
+    reader.readAsDataURL(f);
+    fileInput.value = "";
+  });
+  photoBtns.append(pickBtn, delPhotoBtn);
+  photoRow.append(img, photoBtns, fileInput);
+
+  const noteInput = document.createElement("input");
+  noteInput.className = "pill-input ct-note";
+  noteInput.maxLength = 60;
+  noteInput.placeholder = "备注（可选），如「二窗口，排队 10 分钟」";
+  noteInput.value = saved ? saved.note : "";
+
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "ct-save";
+  saveBtn.textContent = saved ? "保存修改" : "记下这一餐";
+  saveBtn.addEventListener("click", () => {
+    const entry = {
+      id: saved ? saved.id : uid(),
+      date: ctDay,
+      meal: def.key,
+      canteenId: selCanteen.v,
+      dishIds: [...onIds].slice(0, 20),
+      note: noteInput.value.trim().slice(0, 60),
+      createdAt: saved ? saved.createdAt : Date.now(),
+      updatedAt: Date.now(),
+    };
+    const idx = state.meals.findIndex(m => m.id === entry.id);
+    if (idx >= 0) state.meals[idx] = entry;
+    else state.meals.push(entry);
+    if (photoData !== undefined) {
+      if (photoData === null) delete state.mealPhotos[entry.id];
+      else state.mealPhotos[entry.id] = photoData;
+    }
+    pruneMealPhotos();
+    saveState();
+    renderCanteen();
+    toast(def.name + "已保存");
+  });
+
+  card.append(head, sub1, cantRow, sub2, dishWrap, quick, sub3, photoRow, noteInput, saveBtn);
+
+  if (saved) {
+    const delBtn = document.createElement("button");
+    delBtn.type = "button";
+    delBtn.className = "ct-del";
+    delBtn.textContent = "删除这一餐";
+    delBtn.addEventListener("click", () => {
+      const mealSnap = Object.assign({}, saved);
+      const photoSnap = state.mealPhotos[saved.id] || null;
+      state.meals = state.meals.filter(m => m.id !== saved.id);
+      delete state.mealPhotos[saved.id];
+      saveState();
+      renderCanteen();
+      offerUndo(mealSnap, (m) => {
+        state.meals.push(m);
+        if (photoSnap) state.mealPhotos[m.id] = photoSnap;
+        saveState();
+        renderCanteen();
+      }, "这餐记录");
+    });
+    card.appendChild(delBtn);
+  }
+
+  renderCant();
+  renderDishes();
+  renderPhoto();
+  return card;
+}
+function renderCanteenManage() {
+  const cList = document.getElementById("ctCanteenList");
+  cList.innerHTML = "";
+  if (!state.canteens.length) {
+    const em = document.createElement("span");
+    em.className = "ct-meal-state";
+    em.textContent = "还没添加食堂，在上面输入名称添加";
+    cList.appendChild(em);
+  }
+  state.canteens.forEach(c => {
+    const chip = document.createElement("span");
+    chip.className = "rv-chip";
+    const nm = document.createElement("span");
+    nm.textContent = c.name;
+    const x = document.createElement("button");
+    x.type = "button";
+    x.textContent = "×";
+    x.setAttribute("aria-label", "删除食堂 " + c.name);
+    x.addEventListener("click", () => {
+      state.canteens = state.canteens.filter(y => y.id !== c.id);
+      /* 菜和这天的餐归「未指定」，updatedAt 推动同步戳，别的设备跟着归位 */
+      state.dishes.forEach(d => { if (d.canteenId === c.id) { d.canteenId = ""; d.updatedAt = Date.now(); } });
+      state.meals.forEach(m => { if (m.canteenId === c.id) { m.canteenId = ""; m.updatedAt = Date.now(); } });
+      saveState();
+      renderCanteen();
+    });
+    chip.append(nm, x);
+    cList.appendChild(chip);
+  });
+
+  const dList = document.getElementById("ctDishList");
+  dList.innerHTML = "";
+  if (!state.dishes.length) {
+    const em = document.createElement("span");
+    em.className = "ct-meal-state";
+    em.textContent = "还没有菜品，在三餐卡片里「快速加菜」";
+    dList.appendChild(em);
+  }
+  state.dishes.forEach(d => {
+    const chip = document.createElement("span");
+    chip.className = "rv-chip";
+    const cName = d.canteenId ? (state.canteens.find(c => c.id === d.canteenId) || {}).name : "";
+    const nm = document.createElement("span");
+    nm.textContent = cName ? cName + " · " + d.name : d.name;
+    const x = document.createElement("button");
+    x.type = "button";
+    x.textContent = "×";
+    x.setAttribute("aria-label", "删除菜品 " + d.name);
+    x.addEventListener("click", () => {
+      state.dishes = state.dishes.filter(y => y.id !== d.id);
+      saveState();
+      renderCanteen();
+    });
+    chip.append(nm, x);
+    dList.appendChild(chip);
+  });
+
+  const sel = document.getElementById("ctDishCanteen");
+  const prev = sel.value;
+  sel.innerHTML = "";
+  const o0 = document.createElement("option");
+  o0.value = "";
+  o0.textContent = "不指定食堂";
+  sel.appendChild(o0);
+  state.canteens.forEach(c => {
+    const o = document.createElement("option");
+    o.value = c.id;
+    o.textContent = c.name;
+    sel.appendChild(o);
+  });
+  sel.value = state.canteens.some(c => c.id === prev) ? prev : "";
+}
+function renderCanteen() {
+  const todayK = dayKey(Date.now());
+  document.getElementById("ctDate").textContent = fmtDayLabel(ctDay) + (ctDay === todayK ? "（今天）" : "");
+  document.getElementById("ctToday").hidden = (ctDay === todayK);
+  const wrap = document.getElementById("ctMeals");
+  wrap.innerHTML = "";
+  let filled = 0;
+  MEAL_DEFS.forEach(def => {
+    const saved = mealOf(ctDay, def.key);
+    if (saved) filled++;
+    wrap.appendChild(buildMealCard(def, saved));
+  });
+  document.getElementById("ctCount").textContent = filled ? "已记 " + filled + "/3 餐" : "";
+  renderCanteenManage();
+}
+document.getElementById("ctPrev").addEventListener("click", () => ctShift(-1));
+document.getElementById("ctNext").addEventListener("click", () => ctShift(1));
+document.getElementById("ctToday").addEventListener("click", () => { ctDay = dayKey(Date.now()); renderCanteen(); });
+document.getElementById("ctCanteenForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const inp = document.getElementById("ctCanteenInput");
+  const v = inp.value.trim();
+  if (!v) return;
+  state.canteens.push({ id: uid(), name: v.slice(0, 12), createdAt: Date.now() });
+  inp.value = "";
+  saveState();
+  renderCanteen();
+  toast("已添加食堂「" + v.slice(0, 12) + "」");
+});
+document.getElementById("ctDishForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const inp = document.getElementById("ctDishInput");
+  const v = inp.value.trim();
+  if (!v) return;
+  state.dishes.push({ id: uid(), canteenId: document.getElementById("ctDishCanteen").value, name: v.slice(0, 16), createdAt: Date.now(), updatedAt: Date.now() });
+  inp.value = "";
+  saveState();
+  renderCanteen();
+  toast("已添加菜品「" + v.slice(0, 16) + "」");
+});
+
 /* v23：哪几天是展开的（只活在内存里，刷新后回到「今天展开」） */
 const todoOpenDays = new Set();
 let todoOpenInited = false;
 
 function todoRow(t) {
   const li = document.createElement("div");
-  li.className = "todo-item" + (t.done ? " done" : "");
+  const st = todoStatusOf(t);
+  li.className = "todo-item st-" + st + (st === "done" ? " done" : "");
   li.dataset.id = t.id;
 
     const check = document.createElement("label");
     check.className = "todo-check";
     const input = document.createElement("input");
     input.type = "checkbox";
-    input.checked = t.done;
-    input.setAttribute("aria-label", "完成 " + t.text);
+    input.checked = st === "done";
+    input.setAttribute("aria-label", st === "done" ? "标记为未完成" : st === "doing" ? "标记为完成" : "标记为进行中");
     input.addEventListener("change", () => toggleTodo(t.id));
     const box = document.createElement("span");
     box.className = "box";
@@ -5086,9 +5868,13 @@ function renderTodos() {
 
   keys.forEach(k => {
     const all = groups.get(k);
-    /* 未完成在上（先写的先做），已完成沉到当天最底部（刚完成的在上） */
-    const pend = all.filter(t => !t.done).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
-    const fin  = all.filter(t => t.done).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    /* 未完成在上：进行中排最前（正在做的事最该被看见），然后按先写先做；已完成沉底 */
+    const pend = all.filter(t => todoStatusOf(t) !== "done").sort((a, b) => {
+      const da = todoStatusOf(a) === "doing" ? 0 : 1;
+      const db = todoStatusOf(b) === "doing" ? 0 : 1;
+      return da - db || (a.createdAt || 0) - (b.createdAt || 0);
+    });
+    const fin  = all.filter(t => todoStatusOf(t) === "done").sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
     const open = todoOpenDays.has(k);
 
     const day = document.createElement("div");
@@ -5148,10 +5934,20 @@ function renderTodos() {
   todoFoot.hidden = done === 0;
 }
 
+/* v24：待办三态读取（老数据没有 status 字段时按 done 推断） */
+function todoStatusOf(t) {
+  if (!t) return "todo";
+  if (t.status === "doing" || t.status === "done") return t.status;
+  return t.done ? "done" : "todo";
+}
+/* v24：三态循环 —— 待办 → 进行中 → 完成 → 待办，点一下走一步（手机上单手操作） */
 function toggleTodo(id) {
   const t = state.todos.find(t => t.id === id);
   if (!t) return;
-  t.done = !t.done;
+  const cur = todoStatusOf(t);
+  const next = cur === "todo" ? "doing" : cur === "doing" ? "done" : "todo";
+  t.status = next;
+  t.done = next === "done"; /* done 与 status 同步，旧代码读 t.done 不受影响 */
   saveState();
   refreshRecordViews();
 }
@@ -6350,7 +7146,8 @@ function renderHistory() {
 
     g.items.forEach(it => {
       const row = document.createElement("div");
-      row.className = "his-row" + (it.kind === "todo" ? " ti" + (it.data.done ? " done" : "") : "");
+      const rowSt = it.kind === "todo" ? todoStatusOf(it.data) : "";
+      row.className = "his-row" + (it.kind === "todo" ? " ti st-" + rowSt + (rowSt === "done" ? " done" : "") : "");
       row.dataset.id = it.data.id;
 
       if (it.kind === "rec") {
@@ -6362,8 +7159,8 @@ function renderHistory() {
         const mark = document.createElement("button");
         mark.type = "button";
         mark.className = "ti-mark";
-        mark.setAttribute("aria-label", it.data.done ? "标记为未完成" : "完成这项待办");
-        mark.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/><path d="m8.5 12.2 2.4 2.4 4.6-5"/></svg>';
+        mark.setAttribute("aria-label", rowSt === "done" ? "标记为未完成" : rowSt === "doing" ? "标记为完成" : "标记为进行中");
+        mark.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/>' + (rowSt === "done" ? '<path d="m8.5 12.2 2.4 2.4 4.6-5"/>' : rowSt === "doing" ? '<circle cx="12" cy="12" r="3.4" fill="currentColor" stroke="none"/>' : '') + '</svg>';
         mark.addEventListener("click", () => toggleTodo(it.data.id));
         row.appendChild(mark);
       }
@@ -6375,6 +7172,11 @@ function renderHistory() {
       const w = document.createElement("span");
       w.className = "w";
       const rawText = it.kind === "rec" ? it.data.wordText : it.data.text;
+      /* v24：关键词标色（警示红 / 积极绿） */
+      if (it.kind === "rec") {
+        const hisSent = sentimentOf(rawText);
+        if (hisSent) w.classList.add("sent-" + hisSent);
+      }
       if (searching) hlInto(w, rawText, toks);
       else w.textContent = rawText;
 
@@ -7793,6 +8595,7 @@ function toCloudPayload(s) {
   const out = {};
   Object.keys(s).forEach(k => {
     if (k === "sync") return;
+    if (k === "mealPhotos") return; /* v24：饭菜照片只存本机，绝不上云 */
     if (k === "records") { out.records = (s.records || []).map(slimRecord); return; }
     if (k === "spans")   { out.spans   = (s.spans   || []).map(slimSpan);   return; }
     out[k] = s[k];
@@ -7891,20 +8694,24 @@ async function cloudPutBin(binId, payload) {
           否则视为「新增」，保留
    —— 这样两台手机可以各记各的，记录只会越合越多，不会互相覆盖。
    ============================================================ */
-const SYNC_LISTS = ["records", "spans", "todos", "ledger", "comps", "health", "memos"];
-const SYNC_KEYS  = ["words", "places", "ledgerCats"];
+const SYNC_LISTS = ["records", "spans", "todos", "ledger", "comps", "health", "memos", "canteens", "dishes", "meals"];
+const SYNC_KEYS  = ["words", "places", "ledgerCats", "sentWarn", "sentGood", "lgPromptWords"];
 
 /* 单条记录的「版本戳」：删除/修改都靠它判断新旧 */
 function itemStamp(kind, it) {
   if (!it || typeof it !== "object") return 0;
   if (kind === "records") return Number(it.ts) || 0;
   if (kind === "spans")   return Math.max(Number(it.startTs) || 0, Number(it.endTs) || 0);
-  if (kind === "todos")   return (Number(it.createdAt) || 0) + (it.done ? 1 : 0);
+  if (kind === "todos")   return (Number(it.createdAt) || 0) + (it.status === "done" ? 1 : it.status === "doing" ? 2 : 0);
   if (kind === "ledger")  return Number(it.ts) || 0;
   if (kind === "comps")   return Number(it.createdAt) || 0;
   if (kind === "health")  return Number(it.hr) || 0;
   /* 备忘录：改过就按修改时间算，没改过按创建时间 */
   if (kind === "memos")   return Math.max(Number(it.createdAt) || 0, Number(it.updatedAt) || 0);
+  /* v24 食堂：菜品改过（换食堂）按更新时间算 */
+  if (kind === "canteens") return Number(it.createdAt) || 0;
+  if (kind === "dishes")   return Math.max(Number(it.createdAt) || 0, Number(it.updatedAt) || 0);
+  if (kind === "meals")    return Math.max(Number(it.createdAt) || 0, Number(it.updatedAt) || 0);
   return 0;
 }
 
@@ -9334,7 +10141,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v23 · 2026-11-16");
+    add("版本", "v24 · 2026-11-18");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
