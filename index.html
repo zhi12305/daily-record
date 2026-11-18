@@ -1366,6 +1366,8 @@ a { color: inherit; text-decoration: none; }
 }
 
 .tl-word { font-size: 14.5px; min-width: 0; word-break: break-word; }
+/* v24.2：正文吃掉剩余空间，右侧的时长/地点/按钮就不会被挤到下一行 */
+.tl-item > .tl-word { flex: 1 1 auto; }
 
 .tl-diff {
   font-size: 12px;
@@ -2610,6 +2612,9 @@ a { color: inherit; text-decoration: none; }
         <button class="fab-btn" id="btnPageDown" type="button" aria-label="往下翻一屏" title="往下翻一屏">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
         </button>
+        <button class="fab-btn" id="btnToLatest" type="button" aria-label="跳到最新一条记录" title="一步到最新">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 5 6 6 6-6"/><path d="m6 12 6 6 6-6"/></svg>
+        </button>
         <button class="to-top" id="btnToTop" type="button" aria-label="回到首页顶部" title="回到首页">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 10.9 12 3.6l8.8 7.3"/><path d="M5.6 9.7V20.2h12.8V9.7"/></svg>
           <span>回首页</span>
@@ -3738,6 +3743,7 @@ function fmtDiff(ms) {
 function prevAnchorTs(prevRec, nextTs) {
   const base = Number(prevRec && prevRec.ts) || 0;
   if (!base) return base;
+  let anchor = base;
   let sp = null;
   if (prevRec.spanId) sp = (state.spans || []).find(x => x.id === prevRec.spanId) || null;
   if (!sp) {
@@ -3745,10 +3751,20 @@ function prevAnchorTs(prevRec, nextTs) {
     const hits = (state.spans || []).filter(x => x.endTs && base >= x.startTs && base <= x.endTs);
     if (hits.length) sp = hits.sort((a, b) => b.startTs - a.startTs)[0];
   }
-  if (!sp || !sp.endTs) return base;              /* 期间还没结束 → 按记录本身 */
-  if (sp.endTs <= base) return base;              /* 期间结束得比记录还早 → 异常数据，按记录本身 */
-  if (isFinite(nextTs) && nextTs < sp.endTs) return base; /* 下一跳在期间内 → 按记录本身 */
-  return sp.endTs;
+  if (sp && sp.endTs) {
+    /* 期间还没结束 / 结束得比记录还早 / 下一跳在期间内 → 按记录本身 */
+    if (sp.endTs > base && !(isFinite(nextTs) && nextTs < sp.endTs)) anchor = sp.endTs;
+  }
+  /* ★ v24.2：夹在两条记录中间的「期间块」也参与锚点。
+     例：07:55 记完 → 08:00–09:40 上课 → 09:50 拉屎，
+     原来从 07:55 算成 1 小时 56 分；现在从 09:40 起算 = 10 分钟。 */
+  if (isFinite(nextTs)) {
+    (state.spans || []).forEach(x => {
+      if (!x.endTs) return;
+      if (x.endTs > anchor && x.endTs <= nextTs) anchor = x.endTs;
+    });
+  }
+  return anchor;
 }
 
 /* ¥123.5 / ¥1,240（千分位，去尾零） */
@@ -8142,6 +8158,7 @@ const fabStack    = document.getElementById("fabStack");
 const btnToTop    = document.getElementById("btnToTop");
 const btnPageUp   = document.getElementById("btnPageUp");
 const btnPageDown = document.getElementById("btnPageDown");
+const btnToLatest  = document.getElementById("btnToLatest");
 let fabRaf = 0;
 
 /* ★ v22.2：不再按滚动位置显隐 —— 一进页面就常驻，随时能手戳。
@@ -8161,6 +8178,10 @@ function updateFab() {
   btnPageDown.setAttribute("aria-disabled", canDown ? "false" : "true");
   btnPageUp.tabIndex = canUp ? 0 : -1;
   btnPageDown.tabIndex = canDown ? 0 : -1;
+  if (btnToLatest) {
+    btnToLatest.classList.toggle("off", !canDown);
+    btnToLatest.tabIndex = 0;
+  }
   btnToTop.tabIndex = 0;
 }
 
@@ -8172,9 +8193,30 @@ function pageJump(dir) {
   window.scrollBy({ top: dir * Math.round(h * 1.8), behavior: "smooth" });
 }
 
+/* v24.2：直接跳到最新一条记录并闪一下，长列表也不用拖半天 */
+function jumpToLatest() {
+  const tl = document.getElementById("timeline");
+  const rows = tl ? tl.querySelectorAll(".tl-item") : [];
+  const last = rows.length ? rows[rows.length - 1] : null;
+  if (!last) { toast("今天还没有记录"); return; }
+  /* 长列表用瞬时跳转（平滑滚动几千像素会又慢又卡），落地后闪一下告诉眼睛「到了」 */
+  last.scrollIntoView({ block: "center", behavior: "auto" });
+  last.classList.remove("enter");
+  void last.offsetWidth;
+  last.classList.add("enter");
+  setTimeout(() => last.classList.remove("enter"), 1300);
+  toast("已到最新一条");
+}
+
 if (fabStack) {
   btnPageUp.addEventListener("click", () => pageJump(-1));
   btnPageDown.addEventListener("click", () => pageJump(1));
+  /* v24.2：一步跳到最新一条记录 —— 记录多了不用手动往下滑 */
+  if (btnToLatest) btnToLatest.addEventListener("click", () => {
+    const notHome = (document.body.dataset.view || "record") !== "record";
+    if (notHome) { location.hash = "#/record"; setTimeout(jumpToLatest, 140); }
+    else jumpToLatest();
+  });
   btnToTop.addEventListener("click", () => {
     const notHome = (document.body.dataset.view || "record") !== "record";
     const y = window.scrollY || document.documentElement.scrollTop || 0;
@@ -10141,7 +10183,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v24.1 · 2026-11-18");
+    add("版本", "v24.2 · 2026-11-18");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
