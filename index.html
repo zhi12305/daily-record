@@ -766,13 +766,16 @@ a { color: inherit; text-decoration: none; }
   border-radius: 3px; background: var(--accent); opacity: .45;
 }
 .span-head, .span-tail {
-  display: flex; align-items: center; gap: 8px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
   font-size: 12.5px; color: var(--text-2);
   background: var(--accent-soft);
   border-radius: 10px; padding: 6px 10px; margin: 6px 0;
 }
-.span-head .t { font-weight: 620; color: var(--text-1); }
-.span-head .span-ops { margin-left: auto; display: flex; gap: 4px; }
+/* v24.3：标题不许被压成竖排（"上/课"两行）；时间可收缩，按钮组整组贴行尾 */
+.span-head .t { font-weight: 620; color: var(--text-1); flex: none; white-space: nowrap; }
+.span-head .st { flex: 1 1 auto; min-width: 0; }
+.span-head .place-tag { flex: none; }
+.span-head .span-ops { margin-left: auto; display: flex; gap: 4px; flex: none; }
 .span-head .tl-edit, .span-head .tl-del { width: 24px; height: 24px; }
 .span-tail .d { font-weight: 620; color: var(--text-1); }
 .span-tail .cnt { color: var(--text-3); font-size: 11.5px; }
@@ -1366,8 +1369,11 @@ a { color: inherit; text-decoration: none; }
 }
 
 .tl-word { font-size: 14.5px; min-width: 0; word-break: break-word; }
-/* v24.2：正文吃掉剩余空间，右侧的时长/地点/按钮就不会被挤到下一行 */
-.tl-item > .tl-word { flex: 1 1 auto; }
+/* v24.2：正文按内容宽度参与排布（基准 auto）——长正文优先占满一整行，
+   时长 / 地点 / 按钮组自动折到下一行，而不是把正文压成一条窄缝 */
+.tl-item > .tl-word { flex: 1 1 auto; min-width: 4.2em; }
+/* 时长标签同理：极端长标签允许省略号，别把整行挤散 */
+.tl-diff { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 
 .tl-diff {
   font-size: 12px;
@@ -1393,6 +1399,15 @@ a { color: inherit; text-decoration: none; }
 .tl-item:hover .tl-del { opacity: 1; }
 .tl-del:hover { color: var(--danger-deep); background: rgba(196, 148, 148, .12); }
 @media (hover: none) { .tl-del { opacity: .55; } }
+
+/* v24.2：行尾操作按钮组 —— 整体靠右、整组一起换行，绝不拆散 */
+.tl-ops { display: inline-flex; align-items: center; gap: 2px; flex: none; margin-left: auto; }
+.tl-ops > .tl-place, .tl-ops > .tl-edit, .tl-ops > .tl-del {
+  margin-left: 0 !important;
+  order: 0 !important;
+}
+/* 按钮组排在时长 / 地点标签（order:5）之后，始终贴行尾 */
+.tl-item .tl-ops { order: 8; }
 
 /* ★ v17：记录正文一律完整显示，不做省略号截断（手机 / 平板 / 桌面统一） */
 .tl-word, .span-body .tl-word, .his-row .tl-word {
@@ -4955,7 +4970,12 @@ function buildRecRow(r, diffText, flashId) {
   del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   del.addEventListener("click", () => deleteRecord(r.id, row));
 
-  row.append(mark, edit, del);
+  /* v24.2：三个按钮包进一个容器整体靠右 —— 换行时整组一起下去，
+     不会再出现「📍✏️留在上一行、只剩 ✕ 掉到下一行左边」的孤儿 */
+  const ops = document.createElement("span");
+  ops.className = "tl-ops";
+  ops.append(mark, edit, del);
+  row.appendChild(ops);
   return row;
 }
 
@@ -5000,7 +5020,11 @@ function buildTodoRow(t, flashId) {
   del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
   del.addEventListener("click", () => deleteTodo(t.id));
 
-  row.append(edit, del);
+  /* v24.2：操作按钮整组靠右，换行也不拆散 */
+  const ops = document.createElement("span");
+  ops.className = "tl-ops";
+  ops.append(edit, del);
+  row.appendChild(ops);
   return row;
 }
 
@@ -10183,7 +10207,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v24.2 · 2026-11-18");
+    add("版本", "v24.3 · 2026-11-18");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
