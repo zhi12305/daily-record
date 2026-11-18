@@ -1665,6 +1665,31 @@ a { color: inherit; text-decoration: none; }
 
 .lg-list { display: flex; flex-direction: column; }
 
+/* ---------- v25：钱迹 CSV 导入 ---------- */
+.lg-qj { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 8px; }
+.lg-qj .ghost-btn { flex: none; }
+.lg-qj-hint { font-size: 11.5px; color: var(--text-3); flex: 1 1 8em; min-width: 0; }
+.wide-btn { width: 100%; justify-content: center; margin-top: 4px; background: var(--surface-soft); color: var(--text); padding: 10px 14px; font-size: 13px; }
+.qj-paste .ghost-btn { width: 100%; margin-top: 8px; background: var(--surface-soft); color: var(--text); padding: 10px 14px; font-size: 13px; }
+.qj-paste { margin-top: 10px; font-size: 12.5px; color: var(--text-2); }
+.qj-paste summary { cursor: pointer; padding: 6px 0; color: var(--text-3); }
+.qj-paste textarea {
+  width: 100%; min-height: 84px; margin-top: 6px; padding: 10px 12px;
+  border-radius: 12px; border: 1px solid var(--line);
+  background: var(--surface-soft); color: var(--text);
+  font-size: 12.5px; line-height: 1.5; font-family: inherit; resize: vertical;
+}
+.qj-paste .ghost-btn { margin-top: 8px; }
+.qj-preview {
+  margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+  background: var(--surface-soft); font-size: 12.5px; line-height: 1.75; color: var(--text-2);
+}
+.qj-preview b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+.qj-preview .r { color: var(--danger-deep); }
+.qj-preview .ok { color: var(--accent-deep); }
+.qj-preview .l2 { color: var(--text-3); font-size: 11.5px; }
+.qj-preview .nw { white-space: nowrap; }
+
 .lg-item {
   display: flex;
   align-items: center;
@@ -2761,6 +2786,12 @@ a { color: inherit; text-decoration: none; }
 
         <div class="cat-row" id="catRow"><span class="lbl">分类</span></div>
 
+        <!-- v25：钱迹 CSV 导入（晚上把当天账单导进来，不用手动记两遍） -->
+        <div class="lg-qj">
+          <button type="button" class="ghost-btn" id="btnQjImport">⇩ 从钱迹导入</button>
+          <span class="lg-qj-hint">钱迹里记过的账，导进来对一遍</span>
+        </div>
+
         <div class="lg-list" id="ledgerList"></div>
       </div>
     </section>
@@ -3355,6 +3386,26 @@ a { color: inherit; text-decoration: none; }
 
 <input type="file" id="fileImport" accept=".json,application/json" hidden>
 
+<!-- v25：钱迹 CSV 导入弹窗 —— 只新增去重，确认后才写入 -->
+<div class="modal-mask" id="qjModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="qjTitle">
+    <h3 id="qjTitle">从钱迹导入</h3>
+    <p class="modal-sub">钱迹 → 我的 → 数据导出 → 导出 CSV，存到手机里，再回来选这个文件。只补新账，不会覆盖你已经记的。</p>
+    <button type="button" class="ghost-btn wide-btn" id="qjPick">选择 CSV 文件</button>
+    <input type="file" id="qjFile" accept=".csv,text/csv,text/plain,.txt" hidden>
+    <details class="qj-paste">
+      <summary>选不到文件？直接粘贴 CSV 内容</summary>
+      <textarea id="qjText" rows="4" placeholder="把 CSV 里的内容整段粘贴进来…" spellcheck="false"></textarea>
+      <button type="button" class="ghost-btn" id="qjParseText">解析这段内容</button>
+    </details>
+    <div class="qj-preview" id="qjPreview" hidden></div>
+    <div class="mg-foot">
+      <button type="button" class="ghost-btn" id="qjCancel">取消</button>
+      <button type="button" class="primary-btn" id="qjDo" disabled>导入</button>
+    </div>
+  </div>
+</div>
+
 <script>
 "use strict";
 
@@ -3582,7 +3633,7 @@ function normalizeState(d) {
     s.ledgerCats.push({ key: "other", name: "其他", color: "#B6B0A8" });
   }
   /* 账目：分类按上面解析出的 ledgerCats 校验（显式传表，避免 TDZ） */
-  if (Array.isArray(d.ledger))  s.ledger  = d.ledger.filter(e => e && typeof e.amount === "number" && e.amount > 0 && typeof e.ts === "number").map(e => ({ id: String(e.id || uid()), type: e.type === "income" ? "income" : "expense", amount: e.amount, category: validCat(e.category, s.ledgerCats), note: String(e.note || "").slice(0, 30), ts: e.ts }));
+  if (Array.isArray(d.ledger))  s.ledger  = d.ledger.filter(e => e && typeof e.amount === "number" && e.amount > 0 && typeof e.ts === "number").map(e => ({ id: String(e.id || uid()), type: e.type === "income" ? "income" : "expense", amount: e.amount, category: validCat(e.category, s.ledgerCats), note: String(e.note || "").slice(0, 30), ts: e.ts, qj: e.qj ? String(e.qj).slice(0, 32) : "" }));
 
   /* 只有「老数据里压根没有 words 字段」才补默认词。
      用户自己把词删光是合法的，不能在每次刷新时又冒出来（曾被当成"误触默认"的表现）。 */
@@ -4696,10 +4747,14 @@ function renderTimeline(flashId) {
     const rel = document.createElement("span");
     rel.className = "rel";
     rel.textContent = parts.rel || parts.full;
-    const sub = document.createElement("span");
-    sub.className = "sub";
-    sub.textContent = parts.full;
-    label.append(rel, sub);
+    label.appendChild(rel);
+    /* v25：没有"今天/昨天"简称时只显示一遍 */
+    if (parts.rel) {
+      const sub = document.createElement("span");
+      sub.className = "sub";
+      sub.textContent = parts.full;
+      label.appendChild(sub);
+    }
 
     wrap.appendChild(label);
 
@@ -7496,10 +7551,14 @@ function renderLedger() {
     const rel = document.createElement("span");
     rel.className = "rel";
     rel.textContent = parts.rel || parts.full;
-    const sub = document.createElement("span");
-    sub.className = "sub";
-    sub.textContent = parts.full;
-    label.append(rel, sub);
+    label.appendChild(rel);
+    /* v25：老日期没有"今天/昨天"这种简称时，只显示一遍，别重复两遍 */
+    if (parts.rel) {
+      const sub = document.createElement("span");
+      sub.className = "sub";
+      sub.textContent = parts.full;
+      label.appendChild(sub);
+    }
     wrap.appendChild(label);
 
     for (const e of g.items) {
@@ -7549,6 +7608,233 @@ function renderLedger() {
     ledgerList.appendChild(wrap);
   }
 }
+
+/* ============================================================
+   v25：从钱迹导入（CSV）
+   —— 钱迹导出的是 18 列 CSV：UTF-8 带 BOM、RFC4180 引号、逗号分隔。
+      用到的列：ID / 时间 / 分类 / 二级分类 / 类型 / 金额 / 备注。
+   —— 只认「支出 / 收入 / 退款 / 报销」；转账、还款是自己账户之间搬钱，跳过。
+   —— 只新增不覆盖：按「钱迹 ID」或「时间±3分 + 金额 + 类型」判重。
+   ============================================================ */
+const QJ_CAT_RULES = [
+  ["food",    ["餐", "饭", "早餐", "午餐", "晚餐", "夜宵", "外卖", "奶茶", "咖啡", "饮", "零食", "水果", "食堂", "烧烤", "火锅", "买菜"]],
+  ["transit", ["交通", "地铁", "公交", "打车", "出租", "滴滴", "高铁", "火车", "机票", "加油", "油费", "停车", "单车", "车费"]],
+  ["shop",    ["购物", "超市", "日用", "淘宝", "京东", "拼多多", "衣服", "鞋", "数码", "化妆", "快递", "文具"]],
+  ["home",    ["居住", "房租", "水费", "电费", "燃气", "物业", "话费", "宽带", "家居", "充值"]],
+  ["fun",     ["娱乐", "电影", "游戏", "旅游", "景点", "唱歌", "会员", "订阅", "演出", "书"]],
+  ["health",  ["医疗", "药", "医院", "挂号", "体检", "牙", "看病"]],
+];
+
+/* 手写 CSV 解析：支持引号包裹、双引号转义、字段里带逗号和换行 */
+function qjCsvRows(text) {
+  const s = String(text).replace(/^\uFEFF/, "");
+  const rows = [];
+  let row = [], cell = "", q = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (q) {
+      if (c === '"') {
+        if (s[i + 1] === '"') { cell += '"'; i++; } else { q = false; }
+      } else cell += c;
+      continue;
+    }
+    if (c === '"') { q = true; continue; }
+    if (c === ",") { row.push(cell); cell = ""; continue; }
+    if (c === "\n") { row.push(cell); rows.push(row); row = []; cell = ""; continue; }
+    if (c === "\r") continue;
+    cell += c;
+  }
+  if (cell.length || row.length) { row.push(cell); rows.push(row); }
+  return rows.filter(r => r.some(x => String(x).trim() !== ""));
+}
+
+function qjTs(v) {
+  const m = String(v || "").trim().match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})(?:[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+  if (!m) return NaN;
+  const t = new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0)).getTime();
+  return isFinite(t) ? t : NaN;
+}
+
+/* 钱迹分类 → 记录台分类：先认同名，再打关键词，最后落「其他」 */
+function qjCatKey(name) {
+  const raw = String(name || "").trim();
+  if (!raw) return "other";
+  const cats = getCats();
+  const same = cats.find(c => c.name === raw) || cats.find(c => c.name.length >= 2 && raw.includes(c.name));
+  if (same) return same.key;
+  /* 关键词命中，且这个分类用户没删掉 */
+  for (const [key, words] of QJ_CAT_RULES) {
+    if (!cats.some(c => c.key === key)) continue;
+    if (words.some(w => raw.includes(w))) return key;
+  }
+  return "other";
+}
+
+function qjParse(text) {
+  const rows = qjCsvRows(text);
+  if (!rows.length) return { ok: false, msg: "这个文件是空的" };
+
+  /* 找表头：前 12 行里同时有「时间」和「金额」的那一行（钱迹导出的第一行就是） */
+  let hi = -1;
+  for (let i = 0; i < Math.min(rows.length, 12); i++) {
+    const line = rows[i].map(x => String(x).trim());
+    if (line.some(x => x === "时间" || x === "消费时间" || x === "账单时间") && line.some(x => x === "金额")) { hi = i; break; }
+  }
+  if (hi < 0) return { ok: false, msg: "没找到表头（要同时有「时间」「金额」两列）。把你导出文件的前两行发我，我照着改。" };
+
+  const head = rows[hi].map(x => String(x).trim());
+  const col = (...names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
+  const cT = col("时间", "消费时间", "账单时间");
+  const cA = col("金额");
+  const cTy = col("类型", "账单类型");
+  const cC = col("分类");
+  const cC2 = col("二级分类");
+  const cN = col("备注");
+  const cId = col("ID", "id");
+  if (cT < 0 || cA < 0) return { ok: false, msg: "表头里没读到「时间」或「金额」列，先确认这是钱迹导出的 CSV。" };
+
+  const out = [];
+  let bad = 0, moved = 0;
+  const unknown = {};
+  for (let i = hi + 1; i < rows.length; i++) {
+    const r = rows[i];
+    const tyRaw = cTy >= 0 ? String(r[cTy] || "").trim() : "支出";
+    const ts = qjTs(r[cT]);
+    const amount = parseFloat(String(r[cA] || "").replace(/[^\d.\-]/g, ""));
+    if (!isFinite(ts) || !isFinite(amount) || amount <= 0) { bad++; continue; }
+
+    let type;
+    if (tyRaw.includes("收入") || tyRaw.includes("退款") || tyRaw.includes("报销")) type = "income";
+    else if (tyRaw.includes("支出") || tyRaw === "") type = "expense";
+    else { moved++; continue; }   /* 转账 / 还款 */
+
+    const name = ((cC >= 0 ? String(r[cC] || "") : "") + (cC2 >= 0 ? String(r[cC2] || "") : "")).trim();
+    const cat = qjCatKey(name);
+    /* 「其他」这种本来就对上号的，不算"分不清" */
+    const exactName = name && getCats().some(c => c.name === name);
+    if (cat === "other" && name && !exactName) unknown[name] = (unknown[name] || 0) + 1;
+    const note = String((cN >= 0 ? r[cN] : "") || "").trim().slice(0, 30) || name.slice(0, 30);
+
+    out.push({
+      qj: cId >= 0 ? String(r[cId] || "").trim().slice(0, 32) : "",
+      ts, type, cat, note,
+      amount: Math.round(amount * 100) / 100
+    });
+  }
+
+  /* 判重：钱迹 ID 命中，或「类型+金额一致 且 时间差 3 分钟内」 */
+  const news = [], dup = [];
+  const seenQj = new Set(state.ledger.map(e => e.qj).filter(Boolean));
+  for (const r of out) {
+    let isDup = false;
+    if (r.qj && seenQj.has(r.qj)) isDup = true;
+    else isDup = state.ledger.some(e => e.type === r.type && Math.abs(e.amount - r.amount) < 0.005 && Math.abs(e.ts - r.ts) <= 180000);
+    (isDup ? dup : news).push(r);
+  }
+
+  const tsAll = out.map(r => r.ts);
+  return {
+    ok: true, news, dup, bad, moved, unknown,
+    total: out.length,
+    from: tsAll.length ? Math.min(...tsAll) : 0,
+    to: tsAll.length ? Math.max(...tsAll) : 0
+  };
+}
+
+const qjModal = document.getElementById("qjModal");
+const qjPreview = document.getElementById("qjPreview");
+const qjFileInput = document.getElementById("qjFile");
+const qjDoBtn = document.getElementById("qjDo");
+let qjPending = null;
+
+function qjMoney(n) {
+  return "¥" + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+}
+
+function qjRenderPreview(res) {
+  qjPreview.hidden = false;
+  if (!res.ok) {
+    qjPreview.innerHTML = '<span class="r">' + escHtml(res.msg) + "</span>";
+    qjDoBtn.disabled = true;
+    qjDoBtn.textContent = "导入";
+    return;
+  }
+  const d1 = new Date(res.from), d2 = new Date(res.to);
+  const range = (d1.getMonth() + 1) + "月" + d1.getDate() + "日 ~ " + (d2.getMonth() + 1) + "月" + d2.getDate() + "日";
+  const exp = res.news.filter(r => r.type === "expense").reduce((a, r) => a + r.amount, 0);
+  const inc = res.news.filter(r => r.type === "income").reduce((a, r) => a + r.amount, 0);
+
+  const line2 = [];
+  if (inc > 0) line2.push("含收入 " + qjMoney(inc) + "（" + res.news.filter(r => r.type === "income").length + " 笔）");
+  if (res.bad) line2.push("看不懂的行 " + res.bad + " 行");
+  if (res.moved) line2.push("转账/还款 " + res.moved + " 笔（不算花销，跳过）");
+  const uNames = Object.keys(res.unknown).sort((a, b) => res.unknown[b] - res.unknown[a]).slice(0, 3);
+  if (uNames.length) line2.push("分不清的归「其他」：" + uNames.map(n => escHtml(n) + "×" + res.unknown[n]).join("、"));
+
+  qjPreview.innerHTML =
+    '识别 <b>' + res.total + "</b> 笔 &nbsp;·&nbsp; 新增 <b class=\"ok\">" + res.news.length + "</b> 笔" +
+    (res.dup.length ? " &nbsp;·&nbsp; 已记过 <b>" + res.dup.length + "</b> 笔（跳过）" : "") +
+    '<div><span class="nw">' + range + '</span> &nbsp;·&nbsp; <span class="nw">支出 <b>' + qjMoney(exp) + "</b></span></div>" +
+    (line2.length ? '<div class="l2">' + line2.join("<br>") + "</div>" : "");
+
+  qjDoBtn.disabled = !res.news.length;
+  qjDoBtn.textContent = res.news.length ? "导入 " + res.news.length + " 笔" : "没有新账";
+}
+
+function qjHandleText(text) {
+  if (!text || !String(text).trim()) { toast("内容是空的"); return; }
+  if (String(text).indexOf("\uFFFD") >= 0) { toast("文件编码不对，试试用 WPS 另存为 UTF-8"); return; }
+  qjPending = qjParse(text);
+  qjRenderPreview(qjPending);
+}
+
+function qjDoImport() {
+  if (!qjPending || !qjPending.ok || !qjPending.news.length) { toast("没有可导入的新账"); return; }
+  const snap = state.ledger.slice();
+  const n = qjPending.news.length;
+  qjPending.news.forEach(r => {
+    state.ledger.push({
+      id: uid(), type: r.type, amount: r.amount,
+      category: r.cat, note: r.note, ts: r.ts, qj: r.qj || ""
+    });
+  });
+  saveState();
+  renderLedger();
+  qjModal.hidden = true;
+  qjPending = null;
+  toast("已导入 " + n + " 笔", "撤销", () => {
+    state.ledger = snap;
+    saveState();
+    renderLedger();
+  });
+}
+
+document.getElementById("btnQjImport").addEventListener("click", () => {
+  qjPending = null;
+  qjPreview.hidden = true;
+  qjPreview.innerHTML = "";
+  const paste = document.querySelector("#qjModal .qj-paste");
+  if (paste) paste.open = false;
+  document.getElementById("qjText").value = "";
+  qjDoBtn.disabled = true;
+  qjDoBtn.textContent = "导入";
+  qjModal.hidden = false;
+});
+document.getElementById("qjPick").addEventListener("click", () => qjFileInput.click());
+qjFileInput.addEventListener("change", () => {
+  const f = qjFileInput.files && qjFileInput.files[0];
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = () => { qjHandleText(fr.result); qjFileInput.value = ""; };
+  fr.onerror = () => { toast("读取文件失败"); qjFileInput.value = ""; };
+  fr.readAsText(f, "utf-8");
+});
+document.getElementById("qjParseText").addEventListener("click", () => {
+  qjHandleText(document.getElementById("qjText").value);
+});
+document.getElementById("qjCancel").addEventListener("click", () => { qjModal.hidden = true; });
+qjModal.addEventListener("click", (e) => { if (e.target === qjModal) qjModal.hidden = true; });
+qjDoBtn.addEventListener("click", qjDoImport);
 
 function deleteLedger(id, rowEl) {
   const snapshot = state.ledger.find(e => e.id === id);
@@ -10207,7 +10493,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v24.3 · 2026-11-18");
+    add("版本", "v25 · 2026-11-18");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
