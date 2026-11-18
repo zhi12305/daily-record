@@ -2667,7 +2667,7 @@ a { color: inherit; text-decoration: none; }
         </div>
         <form class="note-add has-clock" id="noteForm" autocomplete="off">
           <button type="button" class="clock-btn" data-clock data-back-open aria-label="选择要记到的时间" title="记到别的时间点（如刚才 14:20）">现在</button>
-          <input id="noteInput" class="pill-input" type="text" placeholder="记录点什么…，点 + 保存" data-ph="记录点什么…，点 + 保存" maxlength="60">
+          <input id="noteInput" class="pill-input" type="text" placeholder="记录点什么…，点 + 保存" data-ph="记录点什么…，点 + 保存" maxlength="100">
           <button type="button" class="ghost-btn span-btn" id="btnSpanStart" title="用输入框里的文字开始一个期间（一心多用）">期间</button>
           <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
         </form>
@@ -2686,7 +2686,7 @@ a { color: inherit; text-decoration: none; }
         <div class="timeline" id="timeline"></div>
         <form class="note-add has-clock" id="noteFormBottom" autocomplete="off">
           <button type="button" class="clock-btn" id="btnBackTime" data-clock data-back-open aria-label="选择要记到的时间" title="记到别的时间点（如刚才 14:20）">现在</button>
-          <input id="noteInputBottom" class="pill-input" type="text" placeholder="继续记录…" data-ph="继续记录…" maxlength="60">
+          <input id="noteInputBottom" class="pill-input" type="text" placeholder="继续记录…" data-ph="继续记录…" maxlength="100">
           <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
         </form>
       </div>
@@ -2950,7 +2950,7 @@ a { color: inherit; text-decoration: none; }
     <h3 id="editTitle">编辑记录</h3>
     <div class="edit-field">
       <span class="lbl">内容</span>
-      <input id="editText" type="text" maxlength="60" autocomplete="off">
+      <input id="editText" type="text" maxlength="100" autocomplete="off">
     </div>
     <div class="edit-time">
       <div class="edit-field">
@@ -3515,7 +3515,7 @@ function normalizeState(d) {
   }
   if (Array.isArray(d.words))   s.words   = d.words.filter(w => w && typeof w.text === "string").map(w => ({ id: String(w.id || uid()), text: w.text.slice(0, 10), color: validColor(w.color) }));
   if (Array.isArray(d.places))  s.places  = d.places.filter(p => p && typeof p.name === "string" && p.name.trim()).map(p => ({ id: String(p.id || uid()), name: p.name.trim().slice(0, 12) }));
-  if (Array.isArray(d.records)) s.records = d.records.filter(r => r && typeof r.ts === "number").map(r => ({ id: String(r.id || uid()), wordId: String(r.wordId || ""), wordText: String(r.wordText || "").slice(0, 60), color: validColor(r.color), combo: !!r.combo, placeId: String(r.placeId || ""), noPlace: !!r.noPlace, spanId: String(r.spanId || ""), ts: r.ts }));
+  if (Array.isArray(d.records)) s.records = d.records.filter(r => r && typeof r.ts === "number").map(r => ({ id: String(r.id || uid()), wordId: String(r.wordId || ""), wordText: String(r.wordText || "").slice(0, 100), color: validColor(r.color), combo: !!r.combo, placeId: String(r.placeId || ""), noPlace: !!r.noPlace, spanId: String(r.spanId || ""), ts: r.ts }));
   /* 期间（一心多用）：标题必填、时间合法才保留 */
   if (Array.isArray(d.spans)) s.spans = d.spans.filter(sp => sp && typeof sp.title === "string" && sp.title.trim() && typeof sp.startTs === "number").map(sp => ({ id: String(sp.id || uid()), title: sp.title.trim().slice(0, 20), startTs: sp.startTs, endTs: Number(sp.endTs) > 0 ? Math.floor(Number(sp.endTs)) : 0, placeId: String(sp.placeId || ""), noPlace: !!sp.noPlace }));
   if (Array.isArray(d.todos))   s.todos   = d.todos.filter(t => t && typeof t.text === "string").map(t => {
@@ -6031,7 +6031,7 @@ function openEdit(kind, id) {
     editCtx = { kind, id };
     document.getElementById("editTitle").textContent = "编辑记录";
     document.getElementById("editText").value = r.wordText;
-    document.getElementById("editText").maxLength = 60;
+    document.getElementById("editText").maxLength = 100;
     setEditTimePair("editDate", "editTime", r.ts, recDay(r));
     /* 普通记录可一键升级为期间，并归入这条记录 */
     toSpanBtn.hidden = false;
@@ -7277,8 +7277,8 @@ function renderHistory() {
     const addInput = document.createElement("input");
     addInput.className = "pill-input";
     addInput.type = "text";
-    addInput.maxLength = 60;
-    addInput.placeholder = "补记这一天…（回车保存）";
+    addInput.maxLength = 100;
+    addInput.placeholder = "补记这一天…，点 + 保存";
     const addBtn = document.createElement("button");
     addBtn.type = "submit";
     addBtn.className = "add-btn his-add-btn";
@@ -10141,7 +10141,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v24 · 2026-11-18");
+    add("版本", "v24.1 · 2026-11-18");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
