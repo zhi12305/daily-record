@@ -1667,7 +1667,14 @@ a { color: inherit; text-decoration: none; }
 
 /* ---------- v25：钱迹 CSV 导入 ---------- */
 .lg-qj { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 12px 0 8px; }
-.lg-qj .ghost-btn { flex: none; }
+.lg-qj .ghost-btn {
+  flex: none;
+  background: var(--surface-soft);
+  color: var(--text);
+  padding: 8px 14px;
+  font-size: 13px;
+}
+.lg-qj .ghost-btn:hover { background: var(--surface-softer); }
 .lg-qj-hint { font-size: 11.5px; color: var(--text-3); flex: 1 1 8em; min-width: 0; }
 .wide-btn { width: 100%; justify-content: center; margin-top: 4px; background: var(--surface-soft); color: var(--text); padding: 10px 14px; font-size: 13px; }
 .qj-paste .ghost-btn { width: 100%; margin-top: 8px; background: var(--surface-soft); color: var(--text); padding: 10px 14px; font-size: 13px; }
@@ -1689,6 +1696,15 @@ a { color: inherit; text-decoration: none; }
 .qj-preview .ok { color: var(--accent-deep); }
 .qj-preview .l2 { color: var(--text-3); font-size: 11.5px; }
 .qj-preview .nw { white-space: nowrap; }
+
+/* ---------- v25.2：记账范围切换 / 待办状态标签 / 备忘确认 ---------- */
+.lg-range { margin: 2px 0 12px; }
+.todo-hint { margin: -6px 0 12px; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
+.todo-item .ti-pill { flex: none; cursor: pointer; }
+.memo-edit-ops { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.memo-edit-ops .ghost-btn { margin-left: auto; }
+.memo-edit-wrap { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.memo-edit-wrap .memo-edit-area { flex: none; width: 100%; }
 
 .lg-item {
   display: flex;
@@ -2768,6 +2784,12 @@ a { color: inherit; text-decoration: none; }
         </div>
       </header>
       <div class="card">
+        <!-- v25.2：默认只看今天，新账在上面 -->
+        <div class="seg lg-range" id="lgRange" role="group" aria-label="账目范围">
+          <button type="button" class="seg-btn active" data-range="day">今天</button>
+          <button type="button" class="seg-btn" data-range="month">本月</button>
+          <button type="button" class="seg-btn" data-range="all">全部</button>
+        </div>
         <div class="lg-stats">
           <div class="lg-stat"><div class="k">今日支出</div><div class="v exp" id="statExpToday">¥0</div></div>
           <div class="lg-stat"><div class="k">今日收入</div><div class="v inc" id="statIncToday">¥0</div></div>
@@ -2885,6 +2907,7 @@ a { color: inherit; text-decoration: none; }
           <input id="todoInput" class="pill-input" type="text" placeholder="写点什么，点 + 添加…" maxlength="80">
           <button type="submit" class="add-btn" aria-label="添加待办">+</button>
         </form>
+        <p class="todo-hint">点方框或右边的标签切换：待办 → 进行中 → 完成，再点一下回到待办</p>
         <div class="todo-groups" id="todoList"></div>
         <div class="todo-foot" id="todoFoot" hidden>
           <button class="ghost-btn danger" id="btnClear">清空已完成</button>
@@ -5272,7 +5295,24 @@ function memoStartEdit(id) {
   area.className = "memo-edit-area";
   area.value = m.text;
   area.rows = Math.min(10, Math.max(3, m.text.split("\n").length + 1));
-  textEl.replaceWith(area);
+
+  /* v25.2：编辑也不再"点一下就自动存"，明确给「取消 / 保存」，保存还要过一次确认 */
+  const ops = document.createElement("div");
+  ops.className = "memo-edit-ops";
+  const cancelBtn = document.createElement("button");
+  cancelBtn.type = "button";
+  cancelBtn.className = "ghost-btn";
+  cancelBtn.textContent = "取消";
+  const saveBtn = document.createElement("button");
+  saveBtn.type = "button";
+  saveBtn.className = "primary-btn";
+  saveBtn.textContent = "保存";
+  ops.append(cancelBtn, saveBtn);
+
+  const wrap = document.createElement("div");
+  wrap.className = "memo-edit-wrap";
+  wrap.append(area, ops);
+  textEl.replaceWith(wrap);
   area.focus();
   area.setSelectionRange(area.value.length, area.value.length);
 
@@ -5290,12 +5330,19 @@ function memoStartEdit(id) {
     renderMemos();
     if (typeof renderHistory === "function") renderHistory();
   };
+
+  const askSave = () => {
+    const v = area.value.trim();
+    if (!v || v === m.text) { finish(false); return; }
+    askConfirm(memoConfirmText("确认修改这条备忘？", v)).then((yes) => { if (yes) finish(true); });
+  };
+
+  cancelBtn.addEventListener("click", () => finish(false));
+  saveBtn.addEventListener("click", askSave);
   area.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { e.preventDefault(); finish(false); }
-    /* 回车保存、Shift + 回车换行 —— 和输入框的手感保持一致 */
-    else if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); finish(true); }
+    else if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); askSave(); }
   });
-  area.addEventListener("blur", () => finish(true));
 }
 
 function memoDelete(id) {
@@ -5313,18 +5360,34 @@ function memoDelete(id) {
   }, "这条想法");
 }
 
+/* ============================================================
+   v25.2：备忘录「确认再落盘」
+   —— 复用应用内 askConfirm（原生 confirm 在手机 PWA 里会被静默拦掉）
+   ============================================================ */
+function memoConfirmText(title, text) {
+  const t = String(text || "");
+  const cut = t.length > 160 ? t.slice(0, 160) + "…" : t;
+  return title + "\n\n" + cut;
+}
+
 if (memoForm) {
   memoForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    const m = memoAdd(memoInput.value);
-    if (!m) return;
-    memoInput.value = "";
-    memoInput.style.height = "";
-    saveState();
-    renderMemos();
-    toast("已记下");
+    const text = memoInput.value.trim();
+    if (!text) return;
+    /* v25.2：不擅自保存，先让你确认这段文字 */
+    askConfirm(memoConfirmText("确认保存这条备忘？", text)).then((yes) => {
+      if (!yes) return;
+      const m = memoAdd(text);
+      if (!m) return;
+      memoInput.value = "";
+      memoInput.style.height = "";
+      saveState();
+      renderMemos();
+      toast("已记下");
+    });
   });
-  /* 回车保存、Shift + 回车换行：别让一行想法被回车劈成两条 */
+  /* 回车不再直接落盘，走和点 + 一样的确认流程；Shift + 回车才是换行 */
   memoInput.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
       e.preventDefault();
@@ -5918,6 +5981,18 @@ function todoRow(t) {
     text.className = "todo-text";
     text.textContent = t.text;
 
+    /* v25.2：状态做成明晃晃的标签 —— 待办 / 进行中 / 完成，点一下切换 */
+    const pill = document.createElement("span");
+    pill.className = "ti-pill st-" + st;
+    pill.textContent = st === "done" ? "完成" : st === "doing" ? "进行中" : "待办";
+    pill.title = "点一下切换状态";
+    pill.setAttribute("role", "button");
+    pill.tabIndex = 0;
+    pill.addEventListener("click", () => toggleTodo(t.id));
+    pill.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); toggleTodo(t.id); }
+    });
+
     const edit = document.createElement("button");
     edit.className = "todo-edit";
     edit.setAttribute("aria-label", "编辑待办");
@@ -5930,7 +6005,7 @@ function todoRow(t) {
     del.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
     del.addEventListener("click", () => deleteTodo(t.id));
 
-  li.append(check, text, edit, del);
+  li.append(check, text, pill, edit, del);
   return li;
 }
 
@@ -7438,6 +7513,19 @@ const ledgerMonthLine = document.getElementById("ledgerMonthLine");
 
 let lgTypeVal = "expense";
 let lgCatVal = "food";
+/* v25.2：账目默认只看今天（导进来的老账不占屏），可切本月 / 全部 */
+let lgRangeVal = "day";
+const lgRangeEl = document.getElementById("lgRange");
+
+if (lgRangeEl) {
+  lgRangeEl.addEventListener("click", (e) => {
+    const btn = e.target.closest(".seg-btn");
+    if (!btn) return;
+    lgRangeVal = btn.dataset.range;
+    lgRangeEl.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b === btn));
+    renderLedger();
+  });
+}
 
 lgType.addEventListener("click", (e) => {
   const btn = e.target.closest(".seg-btn");
@@ -7523,19 +7611,50 @@ function renderLedger() {
 
   const d = new Date();
   ledgerMonthLine.textContent = (d.getMonth() + 1) + "月";
-  ledgerCount.textContent = state.ledger.length ? state.ledger.length + " 笔" : "";
 
-  /* 明细（正序，同记录台） */
+  /* 明细：先按范围筛，再按「新 → 旧」排（今天在上、这天里晚的在上） */
+  const inRange = (e) => {
+    const k = dayKey(e.ts);
+    if (lgRangeVal === "day") return k === todayK;
+    if (lgRangeVal === "month") return k.startsWith(monthPrefix);
+    return true;
+  };
+  const list = state.ledger.filter(inRange).sort((a, b) => b.ts - a.ts);
+
+  ledgerCount.textContent = list.length
+    ? (lgRangeVal === "day" ? "今天 " : lgRangeVal === "month" ? "本月 " : "共 ") + list.length + " 笔"
+    : (state.ledger.length ? "这段时间没有" : "");
+
   ledgerList.innerHTML = "";
-  if (!state.ledger.length) {
-    ledgerList.appendChild(emptyState("还没有记账", "在上方记下第一笔"));
+  if (!list.length) {
+    if (!state.ledger.length) {
+      ledgerList.appendChild(emptyState("还没有记账", "在上方记下第一笔"));
+    } else {
+      const box = emptyState(
+        lgRangeVal === "day" ? "今天还没有记账" : "这段时间没有账目",
+        "在钱迹记的账，晚上导入进来就行"
+      );
+      if (lgRangeVal !== "all") {
+        const more = document.createElement("button");
+        more.type = "button";
+        more.className = "ghost-btn";
+        more.style.marginTop = "10px";
+        more.textContent = "看全部 " + state.ledger.length + " 笔";
+        more.addEventListener("click", () => {
+          lgRangeVal = "all";
+          if (lgRangeEl) lgRangeEl.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.range === "all"));
+          renderLedger();
+        });
+        box.appendChild(more);
+      }
+      ledgerList.appendChild(box);
+    }
     return;
   }
 
-  const sorted = [...state.ledger].sort((a, b) => a.ts - b.ts);
   const groups = [];
   let curKey = null, cur = null;
-  for (const r of sorted) {
+  for (const r of list) {
     const k = dayKey(r.ts);
     if (k !== curKey) { curKey = k; cur = { key: k, items: [] }; groups.push(cur); }
     cur.items.push(r);
@@ -8067,17 +8186,27 @@ function qjDoImport() {
   if (!qjPending || !qjPending.ok || !qjPending.news.length) { toast("没有可导入的新账"); return; }
   const snap = state.ledger.slice();
   const n = qjPending.news.length;
+  const todayK = dayKey(Date.now());
+  let hasOld = false;
   qjPending.news.forEach(r => {
+    if (dayKey(r.ts) !== todayK) hasOld = true;
     state.ledger.push({
       id: uid(), type: r.type, amount: r.amount,
       category: r.cat, note: r.note, ts: r.ts, qj: r.qj || ""
     });
   });
   saveState();
-  renderLedger();
   qjModal.hidden = true;
   qjPending = null;
-  toast("已导入 " + n + " 笔", "撤销", () => {
+
+  /* 导进来的账有更早日期的：自动切到「全部」，不然屏幕上一条都看不见，会以为没导进去 */
+  if (hasOld && lgRangeVal === "day") {
+    lgRangeVal = "all";
+    if (lgRangeEl) lgRangeEl.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.range === "all"));
+  }
+  renderLedger();
+
+  toast("已导入 " + n + " 笔" + (hasOld ? "（已切到「全部」）" : ""), "撤销", () => {
     state.ledger = snap;
     saveState();
     renderLedger();
@@ -10774,7 +10903,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v25.1 · 2026-11-19");
+    add("版本", "v25.2 · 2026-11-19");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
