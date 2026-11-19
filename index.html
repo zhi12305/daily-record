@@ -375,6 +375,29 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 0 0 1.5px var(--accent), var(--shadow-btn);
 }
 
+/* v25.3：记录输入框改成自动长高的多行框 —— 句子再长也能看见前半段 */
+textarea.ta-auto {
+  resize: none;
+  display: block;
+  line-height: 1.5;
+  padding: 9px 16px;
+  border-radius: 18px;
+  min-height: 42px;
+  max-height: 104px;
+  overflow-y: auto;
+  font-family: inherit;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.note-add textarea.ta-auto { align-self: center; }
+/* v25.3：弹层里的「内容 / 备注」也自动长高 —— 高度上下限直接读 CSS，JS 不再写死 */
+.ta-modal { resize: none; line-height: 1.6; min-height: 54px; max-height: 120px; overflow-y: auto; font-size: 14px; }
+.ta-modal.ta-sm { min-height: 41px; max-height: 88px; }
+.edit-field textarea.ta-modal { resize: none; font-size: 14px; line-height: 1.55; padding: 10px 13px; }
+/* 记账行里的备注：金额框右边，写得长就往下长，不把金额挤走 */
+.lg-form textarea.ta-auto { align-self: center; padding: 9px 14px; }
+.edit-hint { margin: -6px 0 12px; font-size: 11.5px; line-height: 1.5; color: var(--text-3); }
+
 .add-btn {
   width: 44px; height: 44px;
   flex: none;
@@ -396,11 +419,33 @@ a { color: inherit; text-decoration: none; }
   margin-bottom: 16px;
 }
 
+/* v25.3：记录框独占一整行 —— 输入区从 131px 变 260px，长句子能看见前半段；
+   「现在 / 期间」退到下排，不再和文字抢宽度 */
+#noteForm, #noteFormBottom {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.na-main { display: flex; gap: 9px; align-items: center; }
+.na-main .pill-input { flex: 1 1 auto; }
+.na-tools { display: flex; align-items: center; gap: 6px; padding-left: 1px; }
+.na-tools .clock-btn { height: 30px; font-size: 12px; }
+.na-tools .span-btn {
+  height: 30px;
+  font-size: 12px;
+  padding: 0 12px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-soft);
+  color: var(--text-2);
+}
+
 /* ---------- v23 备忘录 ---------- */
 .memo-add { display: flex; gap: 9px; align-items: flex-end; margin-bottom: 18px; }
+/* v25.3：备忘录输入框也是「写多长就多高」，不再手动拖右下角 */
 .memo-input {
   flex: 1; min-width: 0;
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
   min-height: 46px;
   max-height: 220px;
   border: none;
@@ -471,7 +516,9 @@ a { color: inherit; text-decoration: none; }
   border: 1px solid var(--accent);
   border-radius: 10px;
   padding: 7px 10px;
-  resize: vertical;
+  resize: none;
+  overflow-y: auto;
+  max-height: 320px;
   min-height: 62px;
 }
 .memo-edit-area:focus { outline: none; box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -2440,17 +2487,24 @@ a { color: inherit; text-decoration: none; }
 /* 悬浮操作组：整组一起显隐，避免三个按钮各冒各的 */
 /* ★ v22.4：按钮组整体搬进顶部条的空档里 —— 完全离开内容区，
    滚到哪里都压不到录入框和加号，也就彻底不需要「避让」「淡出」那套补救了。 */
+/* v25.3：翻页 / 到最新 / 回首页 —— 从顶栏搬出来，钉在屏幕右边缘。
+   ① 不占内容宽度（贴着 390px 屏的右侧留白）② 组本身 pointer-events:none，
+      只有按钮收点击，空白处照样能滑能点，绝不妨碍记录 */
 .fab-stack {
+  position: fixed;
+  right: 1px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 45;   /* v25.3：低于弹层遮罩（50），弹层打开时它就老实待在下层，不会浮在暗底上 */
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
   align-items: center;
-  gap: 4px;
-  flex: none;
-  margin: 0 auto;          /* 在日期和时钟之间居中 */
-  padding: 0 2px;
+  gap: 7px;
+  padding: 6px 2px;
+  pointer-events: none;
 }
-.fab-stack.moving { opacity: .5; }
-.fab-stack.yield { opacity: 1; pointer-events: auto; }
+.fab-stack > * { pointer-events: auto; }
+.fab-stack.moving { opacity: .6; }
 .fab-btn {
   width: 32px; height: 32px;
   display: grid;
@@ -2484,6 +2538,34 @@ a { color: inherit; text-decoration: none; }
 .to-top:hover { color: var(--text); background: var(--surface-soft); }
 .to-top svg { width: 14px; height: 14px; flex: none; }
 .to-top:active { transform: scale(.95); }
+
+/* v25.3：右侧悬浮条里的按钮 —— 半透明小圆钮，摸一下变实 */
+.fab-stack .fab-btn,
+.fab-stack .to-top {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, .78);
+  border: 1px solid rgba(120, 110, 100, .12);
+  box-shadow: 0 1px 5px rgba(90, 80, 70, .10);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  opacity: .62;
+}
+.fab-stack .fab-btn:hover,
+.fab-stack .to-top:hover { opacity: 1; background: #FFFFFF; color: var(--text); }
+.fab-stack .fab-btn:active,
+.fab-stack .to-top:active { opacity: 1; transform: scale(.92); }
+.fab-stack .to-top span { display: none; }
+/* 到顶 / 到底：对应按钮明显变淡（盖过上面 .62 的基础透明度） */
+.fab-stack .to-top svg { width: 15px; height: 15px; }
+.fab-stack .fab-btn.off { opacity: .2; pointer-events: none; }
+@media (min-width: 901px) {
+  .fab-stack { right: 16px; }
+}
 /* 桌面端：卡片更宽，输入框和字号跟着放大，别让两行元素挤在左边一小坨 */
 @media (min-width: 901px) {
   .sleep-quick { padding: 16px 18px 15px; gap: 9px; }
@@ -2660,22 +2742,7 @@ a { color: inherit; text-decoration: none; }
         </button>
         <span class="top-date" id="topDate"></span>
       </div>
-      <!-- v22.4：翻页 / 回首页按钮挪进顶部条中间空档，彻底离开内容区 -->
-      <div class="fab-stack" id="fabStack">
-        <button class="fab-btn" id="btnPageUp" type="button" aria-label="往上翻一屏" title="往上翻一屏">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
-        </button>
-        <button class="fab-btn" id="btnPageDown" type="button" aria-label="往下翻一屏" title="往下翻一屏">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-        </button>
-        <button class="fab-btn" id="btnToLatest" type="button" aria-label="跳到最新一条记录" title="一步到最新">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 5 6 6 6-6"/><path d="m6 12 6 6 6-6"/></svg>
-        </button>
-        <button class="to-top" id="btnToTop" type="button" aria-label="回到首页顶部" title="回到首页">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 10.9 12 3.6l8.8 7.3"/><path d="M5.6 9.7V20.2h12.8V9.7"/></svg>
-          <span>回首页</span>
-        </button>
-      </div>
+      <!-- v25.3：翻页 / 到最新 / 回首页 搬到屏幕右侧悬浮（不再占顶栏） -->
       <div class="top-right">
         <span class="top-clock" id="topClock"></span>
         <span class="local-badge" id="localBadge" title="所有数据仅存储在此设备的浏览器中，不上传服务器">
@@ -2684,6 +2751,23 @@ a { color: inherit; text-decoration: none; }
         </span>
       </div>
     </header>
+
+    <!-- v25.3：右侧悬浮操作条 —— 贴在屏幕右边缘，空白处可穿透点击，不挡记录 -->
+    <div class="fab-stack" id="fabStack">
+      <button class="fab-btn" id="btnPageUp" type="button" aria-label="往上翻一屏" title="往上翻一屏">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>
+      </button>
+      <button class="fab-btn" id="btnPageDown" type="button" aria-label="往下翻一屏" title="往下翻一屏">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <button class="fab-btn" id="btnToLatest" type="button" aria-label="跳到最新一条记录" title="一步到最新">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 5 6 6 6-6"/><path d="m6 12 6 6 6-6"/></svg>
+      </button>
+      <button class="to-top" id="btnToTop" type="button" aria-label="回到首页顶部" title="回到首页">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 10.9 12 3.6l8.8 7.3"/><path d="M5.6 9.7V20.2h12.8V9.7"/></svg>
+        <span>回首页</span>
+      </button>
+    </div>
 
     <!-- 视图一：记录台（默认主页） -->
     <section class="view active" id="view-record">
@@ -2727,10 +2811,15 @@ a { color: inherit; text-decoration: none; }
           </div>
         </div>
         <form class="note-add has-clock" id="noteForm" autocomplete="off">
-          <button type="button" class="clock-btn" data-clock data-back-open aria-label="选择要记到的时间" title="记到别的时间点（如刚才 14:20）">现在</button>
-          <input id="noteInput" class="pill-input" type="text" placeholder="记录点什么…，点 + 保存" data-ph="记录点什么…，点 + 保存" maxlength="100">
-          <button type="button" class="ghost-btn span-btn" id="btnSpanStart" title="用输入框里的文字开始一个期间（一心多用）">期间</button>
-          <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
+          <!-- v25.3：输入框独占一行（长句子才看得见前半段），「现在 / 期间」退到下面一排 -->
+          <div class="na-main">
+            <textarea id="noteInput" class="pill-input ta-auto ta-enter" rows="1" placeholder="记录点什么…，点 + 保存" data-ph="记录点什么…，点 + 保存" maxlength="100"></textarea>
+            <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
+          </div>
+          <div class="na-tools">
+            <button type="button" class="clock-btn" data-clock data-back-open aria-label="选择要记到的时间" title="记到别的时间点（如刚才 14:20）">现在</button>
+            <button type="button" class="ghost-btn span-btn" id="btnSpanStart" title="新建一个期间（一心多用）：可以顺手填开始和结束时间">期间</button>
+          </div>
         </form>
         <div class="span-bar" id="spanBar" hidden>
           <span class="span-dot" aria-hidden="true"></span>
@@ -2741,14 +2830,18 @@ a { color: inherit; text-decoration: none; }
         <div class="back-badge" id="backBadge" hidden></div>
         <form class="note-add todo-add" id="todoInlineForm" autocomplete="off">
           <span class="ti-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="4.5"/></svg></span>
-          <input id="todoInlineInput" class="pill-input" type="text" placeholder="添加当天待办，点 + 保存" maxlength="60">
+          <textarea id="todoInlineInput" class="pill-input ta-auto ta-enter" rows="1" placeholder="添加当天待办，点 + 保存" maxlength="60"></textarea>
           <button type="submit" class="add-btn ti-add" aria-label="保存待办">+</button>
         </form>
         <div class="timeline" id="timeline"></div>
         <form class="note-add has-clock" id="noteFormBottom" autocomplete="off">
-          <button type="button" class="clock-btn" id="btnBackTime" data-clock data-back-open aria-label="选择要记到的时间" title="记到别的时间点（如刚才 14:20）">现在</button>
-          <input id="noteInputBottom" class="pill-input" type="text" placeholder="继续记录…" data-ph="继续记录…" maxlength="100">
-          <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
+          <div class="na-main">
+            <textarea id="noteInputBottom" class="pill-input ta-auto ta-enter" rows="1" placeholder="继续记录…" data-ph="继续记录…" maxlength="100"></textarea>
+            <button type="submit" class="add-btn" aria-label="保存文字记录">+</button>
+          </div>
+          <div class="na-tools">
+            <button type="button" class="clock-btn" id="btnBackTime" data-clock data-back-open aria-label="选择要记到的时间" title="记到别的时间点（如刚才 14:20）">现在</button>
+          </div>
         </form>
       </div>
     </section>
@@ -2802,7 +2895,7 @@ a { color: inherit; text-decoration: none; }
             <button type="button" class="seg-btn" data-type="income">收入</button>
           </div>
           <input id="lgAmount" class="pill-input" type="number" min="0.01" step="0.01" placeholder="0.00" inputmode="decimal">
-          <input id="lgNote" class="pill-input" type="text" placeholder="备注（可选）" maxlength="30">
+          <textarea id="lgNote" class="pill-input ta-auto ta-enter" rows="1" placeholder="备注（可选）" maxlength="30"></textarea>
           <button type="submit" class="add-btn" aria-label="保存记账">+</button>
         </form>
 
@@ -2828,7 +2921,7 @@ a { color: inherit; text-decoration: none; }
       </header>
       <div class="card">
         <form class="comp-fetch" id="compUrlForm" autocomplete="off">
-          <input id="compUrlInput" class="pill-input" type="text" placeholder="粘贴比赛官网 / 报名页链接…" maxlength="300">
+          <textarea id="compUrlInput" class="pill-input ta-auto ta-enter" rows="1" placeholder="粘贴比赛官网 / 报名页链接…" maxlength="300"></textarea>
           <button type="submit" class="primary-btn" id="btnCompFetch">抓取</button>
         </form>
         <p class="comp-fetch-tip">回车尝试读取页面，自动提取名称与报名截止时间；抓不到时 <button type="button" id="btnCompPaste">粘贴页面文字</button> 同样能提取，之后都能手动改。也可以 <button type="button" id="btnCompManual">手动填写</button>。</p>
@@ -2904,7 +2997,7 @@ a { color: inherit; text-decoration: none; }
       </header>
       <div class="card">
         <form class="todo-add" id="todoForm" autocomplete="off">
-          <input id="todoInput" class="pill-input" type="text" placeholder="写点什么，点 + 添加…" maxlength="80">
+          <textarea id="todoInput" class="pill-input ta-auto ta-enter" rows="1" placeholder="写点什么，点 + 添加…" maxlength="80"></textarea>
           <button type="submit" class="add-btn" aria-label="添加待办">+</button>
         </form>
         <p class="todo-hint">点方框或右边的标签切换：待办 → 进行中 → 完成，再点一下回到待办</p>
@@ -3024,7 +3117,7 @@ a { color: inherit; text-decoration: none; }
     <h3 id="editTitle">编辑记录</h3>
     <div class="edit-field">
       <span class="lbl">内容</span>
-      <input id="editText" type="text" maxlength="100" autocomplete="off">
+      <textarea id="editText" class="ta-modal" rows="2" maxlength="100" autocomplete="off"></textarea>
     </div>
     <div class="edit-time">
       <div class="edit-field">
@@ -3052,6 +3145,7 @@ a { color: inherit; text-decoration: none; }
         </div>
       </div>
     </div>
+    <div class="edit-hint" id="editEndHint" hidden></div>
     <button type="button" class="ghost-btn to-span-btn" id="btnToSpan" hidden>转为期间（一心多用）</button>
     <div class="mg-foot">
       <button class="ghost-btn danger" id="btnEditDelete">删除</button>
@@ -3117,7 +3211,7 @@ a { color: inherit; text-decoration: none; }
     </div>
     <div class="edit-field">
       <span class="lbl">补充（可选）</span>
-      <input id="comboNote" type="text" placeholder="如：一共花了 15 分钟" maxlength="30" autocomplete="off">
+      <textarea id="comboNote" class="ta-modal ta-sm" rows="1" placeholder="如：一共花了 15 分钟" maxlength="30" autocomplete="off"></textarea>
     </div>
     <div class="mg-foot">
       <button class="ghost-btn" id="btnComboCancel">取消</button>
@@ -3190,7 +3284,7 @@ a { color: inherit; text-decoration: none; }
       </div>
       <div class="edit-field">
         <span class="lbl">备注（可选）</span>
-        <input id="lgEditNote" type="text" maxlength="30" autocomplete="off">
+        <textarea id="lgEditNote" class="ta-modal ta-sm" rows="1" maxlength="30" autocomplete="off"></textarea>
       </div>
     </div>
     <div class="edit-field">
@@ -3231,11 +3325,11 @@ a { color: inherit; text-decoration: none; }
     <p class="modal-sub">识别不准没关系，随时可以手动改</p>
     <div class="edit-field">
       <span class="lbl">比赛名称</span>
-      <input id="compName" type="text" maxlength="40" autocomplete="off" placeholder="如：2026 校园马拉松">
+      <textarea id="compName" class="ta-modal ta-sm" rows="1" maxlength="40" autocomplete="off" placeholder="如：2026 校园马拉松"></textarea>
     </div>
     <div class="edit-field">
       <span class="lbl">官网链接（可选）</span>
-      <input id="compUrl" type="text" maxlength="300" autocomplete="off" placeholder="https://…">
+      <textarea id="compUrl" class="ta-modal ta-sm" rows="1" maxlength="300" autocomplete="off" placeholder="https://…"></textarea>
     </div>
     <div class="edit-time">
       <div class="edit-field">
@@ -3254,7 +3348,7 @@ a { color: inherit; text-decoration: none; }
     </div>
     <div class="edit-field">
       <span class="lbl">备注（可选）</span>
-      <input id="compNote" type="text" maxlength="30" autocomplete="off" placeholder="如：团体报名 5 人">
+      <textarea id="compNote" class="ta-modal ta-sm" rows="1" maxlength="30" autocomplete="off" placeholder="如：团体报名 5 人"></textarea>
     </div>
     <div class="mg-foot">
       <button class="ghost-btn danger" id="btnCompDelete" hidden>删除</button>
@@ -3396,7 +3490,7 @@ a { color: inherit; text-decoration: none; }
       </div>
       <div class="edit-field">
         <span class="lbl">备注</span>
-        <input id="lgPromptNote" type="text" maxlength="30" placeholder="买了什么">
+        <textarea id="lgPromptNote" class="ta-modal ta-sm ta-enter" rows="1" maxlength="30" placeholder="买了什么"></textarea>
       </div>
       <div class="cat-row" id="lgPromptCats"><span class="lbl">分类</span></div>
       <div class="mg-foot">
@@ -3609,7 +3703,12 @@ function normalizeState(d) {
   }
   if (Array.isArray(d.words))   s.words   = d.words.filter(w => w && typeof w.text === "string").map(w => ({ id: String(w.id || uid()), text: w.text.slice(0, 10), color: validColor(w.color) }));
   if (Array.isArray(d.places))  s.places  = d.places.filter(p => p && typeof p.name === "string" && p.name.trim()).map(p => ({ id: String(p.id || uid()), name: p.name.trim().slice(0, 12) }));
-  if (Array.isArray(d.records)) s.records = d.records.filter(r => r && typeof r.ts === "number").map(r => ({ id: String(r.id || uid()), wordId: String(r.wordId || ""), wordText: String(r.wordText || "").slice(0, 100), color: validColor(r.color), combo: !!r.combo, placeId: String(r.placeId || ""), noPlace: !!r.noPlace, spanId: String(r.spanId || ""), ts: r.ts }));
+  if (Array.isArray(d.records)) s.records = d.records.filter(r => r && typeof r.ts === "number").map(r => {
+    const o = { id: String(r.id || uid()), wordId: String(r.wordId || ""), wordText: String(r.wordText || "").slice(0, 100), color: validColor(r.color), combo: !!r.combo, placeId: String(r.placeId || ""), noPlace: !!r.noPlace, spanId: String(r.spanId || ""), ts: r.ts };
+    /* v25.3：这条记录自己的起止（可选） */
+    if (typeof r.toTs === "number" && r.toTs > r.ts) { o.fromTs = r.ts; o.toTs = r.toTs; }
+    return o;
+  });
   /* 期间（一心多用）：标题必填、时间合法才保留 */
   if (Array.isArray(d.spans)) s.spans = d.spans.filter(sp => sp && typeof sp.title === "string" && sp.title.trim() && typeof sp.startTs === "number").map(sp => ({ id: String(sp.id || uid()), title: sp.title.trim().slice(0, 20), startTs: sp.startTs, endTs: Number(sp.endTs) > 0 ? Math.floor(Number(sp.endTs)) : 0, placeId: String(sp.placeId || ""), noPlace: !!sp.noPlace }));
   if (Array.isArray(d.todos))   s.todos   = d.todos.filter(t => t && typeof t.text === "string").map(t => {
@@ -3832,6 +3931,8 @@ function fmtDiff(ms) {
 function prevAnchorTs(prevRec, nextTs) {
   const base = Number(prevRec && prevRec.ts) || 0;
   if (!base) return base;
+  /* v25.3：这条自己填了结束时间，下一段就把它当作锚点，别再往上一条的 ts 上算 */
+  if (prevRec && Number(prevRec.toTs) > base) return Number(prevRec.toTs);
   let anchor = base;
   let sp = null;
   if (prevRec.spanId) sp = (state.spans || []).find(x => x.id === prevRec.spanId) || null;
@@ -4290,12 +4391,62 @@ function addRecord(word) {
 const noteForm = document.getElementById("noteForm");
 const noteInput = document.getElementById("noteInput");
 
+/* v25.3：输入框会自动长高，长句子也能整段看见（最多 5 行，再多就框内滚动） */
+function autoGrowTA(el) {
+  if (!el || el.tagName !== "TEXTAREA") return;
+  /* v25.3：上下限直接读 CSS（.ta-auto 42–104 / .ta-sm 41–88 / 备忘录 46–220），
+     一处逻辑管全部输入框，不用每加一个框再写一遍数字 */
+  const cs = getComputedStyle(el);
+  const min = parseFloat(cs.minHeight) || 42;
+  const max = parseFloat(cs.maxHeight) || 9999;
+  el.style.height = "auto";
+  /* 空框只按一行高度算 —— 占位文字换行不该把框撑高（v25.3 踩过的坑） */
+  if (!el.value) { el.style.height = min + "px"; return; }
+  el.style.height = Math.min(max, Math.max(min, el.scrollHeight)) + "px";
+}
+function resetTA(el) {
+  if (!el) return;
+  el.value = "";
+  el.style.height = "";
+  autoGrowTA(el);
+}
+/* v25.3：弹层打开后，把里面的多行框按当前内容重新量一遍高（程序填进去的长文本也要看得见） */
+function growAllIn(root) {
+  if (!root) return;
+  requestAnimationFrame(() => { root.querySelectorAll("textarea").forEach(t => autoGrowTA(t)); });
+}
+/* v25.3：全站 textarea 统一自动长高（打字时 + 聚焦时，覆盖弹层里程序填值的情况） */
+document.addEventListener("input", (e) => {
+  const t = e.target;
+  if (t && t.tagName === "TEXTAREA" && (t.classList.contains("ta-auto") || t.classList.contains("ta-modal") || t.id === "memoInput")) autoGrowTA(t);
+}, true);
+document.addEventListener("focusin", (e) => {
+  const t = e.target;
+  if (t && t.tagName === "TEXTAREA" && (t.classList.contains("ta-auto") || t.classList.contains("ta-modal") || t.id === "memoInput")) autoGrowTA(t);
+}, true);
+[noteInput, document.getElementById("noteInputBottom")].forEach(el => { if (el) autoGrowTA(el); });
+
+/* v25.3：变成多行框后，回车仍然 = 保存（和以前一样），Shift + 回车才是换行
+   —— 全站统一按 class="ta-enter" 认，新加输入框不用再单独写一遍 */
+document.addEventListener("keydown", (e) => {
+  const t = e.target;
+  if (!t || t.tagName !== "TEXTAREA" || !t.classList.contains("ta-enter")) return;
+  if (e.key !== "Enter" || e.shiftKey || e.isComposing) return;
+  e.preventDefault();
+  const form = t.closest("form");
+  if (form) form.requestSubmit();
+}, true);
+
+/* 编辑弹层里的「内容」同样会自动长高 */
+const editTextEl = document.getElementById("editText");
+if (editTextEl) editTextEl.addEventListener("input", () => autoGrowTA(editTextEl));
+
 noteForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const text = noteInput.value.trim();
   if (!text) return;
   pushRecord({ wordId: "", wordText: text, color: MORANDI[0].hex });
-  noteInput.value = "";
+  resetTA(noteInput);
 });
 
 /* 最新记录下方：第二个输入框（同一逻辑） */
@@ -4306,7 +4457,7 @@ noteFormBottom.addEventListener("submit", (e) => {
   const text = noteInputBottom.value.trim();
   if (!text) return;
   pushRecord({ wordId: "", wordText: text, color: MORANDI[0].hex });
-  noteInputBottom.value = "";
+  resetTA(noteInputBottom);
 });
 
 /* ============================================================
@@ -4494,10 +4645,7 @@ applyWordsFold();
 
 /* 期间：开始 / 结束 */
 document.getElementById("btnSpanStart").addEventListener("click", () => {
-  const t = noteInput.value.trim();
-  if (!t) { toast("先在输入框写期间名称（如：上课），再点「期间」"); return; }
-  startSpan(t);
-  noteInput.value = "";
+  openSpanNew(noteInput.value.trim());
 });
 document.getElementById("btnSpanEnd").addEventListener("click", endSpan);
 backBind();
@@ -5008,6 +5156,12 @@ function buildRecRow(r, diffText, flashId) {
   if (recSent) word.classList.add("sent-" + recSent);
   word.textContent = r.wordText;
 
+  /* v25.3：这条记录自己填了结束时间 —— 时长按自己的起止算，不按「距下一条」算 */
+  if (r.toTs && r.toTs > (r.fromTs || r.ts)) {
+    const from = r.fromTs || r.ts;
+    diffText = "至 " + fmtTime(r.toTs) + " · " + fmtSpanDur(r.toTs - from);
+  }
+
   row.append(dot, time, word);
 
   if (diffText) {
@@ -5166,7 +5320,7 @@ todoInlineForm.addEventListener("submit", (e) => {
   if (!text) return;
   const t = { id: uid(), text, done: false, createdAt: Date.now() };
   state.todos.unshift(t);
-  todoInlineInput.value = "";
+  resetTA(todoInlineInput);
   saveState();
   refreshRecordViews(t.id);
   toast("已加入当天待办");
@@ -5183,7 +5337,7 @@ todoForm.addEventListener("submit", (e) => {
   const text = todoInput.value.trim();
   if (!text) return;
   addTodo(text);
-  todoInput.value = "";
+  resetTA(todoInput);
   saveState();
   renderTodos();
   renderTimeline();
@@ -5295,6 +5449,8 @@ function memoStartEdit(id) {
   area.className = "memo-edit-area";
   area.value = m.text;
   area.rows = Math.min(10, Math.max(3, m.text.split("\n").length + 1));
+  area.addEventListener("input", () => autoGrowTA(area));
+  requestAnimationFrame(() => autoGrowTA(area));
 
   /* v25.2：编辑也不再"点一下就自动存"，明确给「取消 / 保存」，保存还要过一次确认 */
   const ops = document.createElement("div");
@@ -5470,6 +5626,7 @@ function openLgPrompt(rec) {
   document.getElementById("lgPromptNote").value = hint.note || "";
   buildLgPromptCats();
   document.getElementById("lgPromptModal").hidden = false;
+  growAllIn(document.getElementById("lgPromptModal"));
   setTimeout(() => (hint.amount != null ? document.getElementById("lgPromptNote") : amtEl).focus(), 80);
 }
 function closeLgPrompt() {
@@ -6171,12 +6328,50 @@ function setEditTimePair(dateEl, timeEl, ts, dayOverride) {
   document.getElementById(timeEl).value = pad(d.getHours()) + ":" + pad(d.getMinutes());
 }
 
+/* v25.3：把「结束日期 / 结束时间」清空（记录没有自己的结束时间时） */
+function clearEditTimePair(dateEl, timeEl) {
+  document.getElementById(dateEl).value = "";
+  document.getElementById(timeEl).value = "";
+}
+
+/* v25.3：新建期间 —— 开始时间 / 结束时间都能手填（补记昨晚 19:00–21:00 自习） */
+function openSpanNew(title) {
+  if (activeSpan()) { toast("已有进行中的期间，请先结束"); return; }
+  const endRow = document.getElementById("editEndRow");
+  const toSpanBtn = document.getElementById("btnToSpan");
+  const endHint = document.getElementById("editEndHint");
+  const delBtn = document.getElementById("btnEditDelete");
+  editCtx = { kind: "span-new" };
+  document.getElementById("editTitle").textContent = "新建期间";
+  const et = document.getElementById("editText");
+  et.value = title || "";
+  et.maxLength = 20;
+  autoGrowTA(et);
+  document.getElementById("editTimeLbl").textContent = "开始时间";
+  setEditTimePair("editDate", "editTime", (isFinite(backTs) && backTs) ? backTs : Date.now());
+  endRow.hidden = false;
+  clearEditTimePair("editEndDate", "editEndTime");
+  if (endHint) {
+    endHint.hidden = false;
+    endHint.textContent = "结束时间留空 = 从现在起「进行中」；填了 = 直接补记完整的一段（只填几点也行，默认同一天）";
+  }
+  if (toSpanBtn) toSpanBtn.hidden = true;
+  if (delBtn) delBtn.hidden = true;
+  editModal.hidden = false;
+  growAllIn(editModal);
+  setTimeout(() => et.focus(), 60);
+}
+
 function openEdit(kind, id) {
   const endRow = document.getElementById("editEndRow");
   const toSpanBtn = document.getElementById("btnToSpan");
   const timeLbl = document.getElementById("editTimeLbl");
+  const endHint = document.getElementById("editEndHint");
+  const delBtn = document.getElementById("btnEditDelete");
   endRow.hidden = true;
   toSpanBtn.hidden = true;
+  if (endHint) { endHint.hidden = true; endHint.textContent = ""; }
+  if (delBtn) delBtn.hidden = false;
   timeLbl.textContent = "时间";
 
   if (kind === "span") {
@@ -6186,6 +6381,7 @@ function openEdit(kind, id) {
     document.getElementById("editTitle").textContent = "编辑期间";
     document.getElementById("editText").value = sp.title;
     document.getElementById("editText").maxLength = 20;
+    autoGrowTA(document.getElementById("editText"));
     timeLbl.textContent = "开始时间";
     setEditTimePair("editDate", "editTime", sp.startTs);
     /* 结束时间可改；进行中的期间不显示结束行（要先结束） */
@@ -6202,7 +6398,14 @@ function openEdit(kind, id) {
     document.getElementById("editTitle").textContent = "编辑记录";
     document.getElementById("editText").value = r.wordText;
     document.getElementById("editText").maxLength = 100;
+    autoGrowTA(document.getElementById("editText"));
     setEditTimePair("editDate", "editTime", r.ts, recDay(r));
+    /* v25.3：这条记录自己的起止 —— 填了结束时间就按自己的区间算时长 */
+    timeLbl.textContent = "开始时间";
+    endRow.hidden = false;
+    if (r.toTs && r.toTs > r.ts) setEditTimePair("editEndDate", "editEndTime", r.toTs);
+    else clearEditTimePair("editEndDate", "editEndTime");
+    if (endHint) { endHint.hidden = false; endHint.textContent = "结束时间可以不填：不填就只算一个时间点，时长按「距下一条」算；只填几点也行，默认同一天"; }
     /* 普通记录可一键升级为期间，并归入这条记录 */
     toSpanBtn.hidden = false;
     toSpanBtn.textContent = "转为期间（把这条当作期间开始）";
@@ -6216,6 +6419,7 @@ function openEdit(kind, id) {
     setEditTimePair("editDate", "editTime", t.createdAt);
   }
   editModal.hidden = false;
+  growAllIn(editModal);
   setTimeout(() => document.getElementById("editText").focus(), 60);
 }
 
@@ -6242,6 +6446,18 @@ function readEditTimePair(dateId, timeId) {
   return isFinite(ts) ? ts : null;
 }
 
+/* v25.3：结束时间只要填了「几点」就算数 —— 日期没填就跟着开始那天走；
+   如果比开始还早，按跨零点算到第二天（22:00 → 01:00 这种夜里的期间） */
+function readEditEndTs(startTs) {
+  const t = document.getElementById("editEndTime").value;
+  if (!t) return null;
+  const d = document.getElementById("editEndDate").value || document.getElementById("editDate").value || dayKey(startTs || Date.now());
+  let ts = new Date(d + "T" + t + ":00").getTime();
+  if (!isFinite(ts)) return null;
+  if (!document.getElementById("editEndDate").value && isFinite(startTs) && ts <= startTs) ts += 86400000;
+  return ts;
+}
+
 document.getElementById("btnEditCancel").addEventListener("click", closeEdit);
 editModal.addEventListener("click", (e) => { if (e.target === editModal) closeEdit(); });
 document.getElementById("btnEditSave").addEventListener("click", () => {
@@ -6255,12 +6471,37 @@ document.getElementById("btnEditSave").addEventListener("click", () => {
     if (r) {
       r.wordText = text;
       r.ts = ts;
+      /* v25.3：记录自己的结束时间（留空 = 不单独算时长） */
+      const recEnd = document.getElementById("editEndRow").hidden ? null : readEditEndTs(ts);
+      if (recEnd !== null) {
+        if (recEnd <= ts) { toast("结束时间必须晚于开始时间"); return; }
+        r.fromTs = ts;
+        r.toTs = recEnd;
+      } else {
+        delete r.fromTs;
+        delete r.toTs;
+      }
       /* v19：弹层里的「日期」= 用户认定的归属日。
          和 4 点日界算出来的不同（比如凌晨 1 点），就显式记下来，避免又跑回前一天。 */
       const wantDay = document.getElementById("editDate").value;
       if (isDayStr(wantDay) && wantDay !== dayKey(ts)) r.day = wantDay;
       else delete r.day;
     }
+  } else if (editCtx.kind === "span-new") {
+    const manualEnd = readEditEndTs(ts);
+    if (manualEnd !== null && manualEnd <= ts) { toast("结束时间必须晚于开始时间"); return; }
+    const sp = { id: uid(), title: text.slice(0, 20), startTs: ts, endTs: manualEnd || 0 };
+    state.spans.push(sp);
+    if (noteInput && noteInput.value.trim() === text) resetTA(noteInput);
+    if (isFinite(backTs) && backTs) { backTs = null; backSyncTrigger(); backHintCheck(); }
+    saveState();
+    closeEdit();
+    refreshRecordViews();
+    renderSpanBar();
+    toast(manualEnd
+      ? "期间「" + sp.title + "」已补记：" + fmtTime(ts) + "–" + fmtTime(manualEnd)
+      : "期间「" + sp.title + "」从 " + fmtTime(ts) + " 开始");
+    return;
   } else if (editCtx.kind === "span") {
     const sp = state.spans.find(x => x.id === editCtx.id);
     if (sp) {
@@ -6269,7 +6510,7 @@ document.getElementById("btnEditSave").addEventListener("click", () => {
       sp.startTs = ts;
       /* 结束时间：用户在弹层里显式填了就按填的来；否则按规则重算 */
       const endRow = document.getElementById("editEndRow");
-      const manualEnd = !endRow.hidden ? readEditTimePair("editEndDate", "editEndTime") : null;
+      const manualEnd = !endRow.hidden ? readEditEndTs(sp.startTs) : null;
       if (manualEnd !== null) {
         if (manualEnd <= sp.startTs) { toast("结束时间必须晚于开始时间"); return; }
         sp.endTs = manualEnd;
@@ -6846,6 +7087,7 @@ function openComp(id) {
   applyPosterThumb();
   document.getElementById("btnCompDelete").hidden = !c;
   compModal.hidden = false;
+  growAllIn(compModal);
   setTimeout(() => document.getElementById("compName").focus(), 60);
 }
 
@@ -7027,7 +7269,7 @@ document.getElementById("compUrlForm").addEventListener("submit", async (e) => {
   } catch (err) { /* 目标站不允许跨域读取时走粘贴兜底 */ }
   btnCompFetch.disabled = false;
   btnCompFetch.textContent = "抓取";
-  compUrlInput.value = "";
+  resetTA(compUrlInput);
 
   const info = extractCompInfo(text);
   if (info.name || info.deadline) {
@@ -7586,7 +7828,7 @@ lgForm.addEventListener("submit", (e) => {
     ts: Date.now(),
   });
   lgAmount.value = "";
-  lgNote.value = "";
+  resetTA(lgNote);
   saveState();
   renderLedger();
 });
@@ -8311,6 +8553,7 @@ function openLedgerEdit(id) {
   lgEditType.querySelectorAll(".seg-btn").forEach(b => b.classList.toggle("active", b.dataset.type === e.type));
   renderLgEditCats();
   lgEditModal.hidden = false;
+  growAllIn(lgEditModal);
   setTimeout(() => lgEditAmount.focus(), 60);
 }
 
@@ -10903,7 +11146,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v25.2 · 2026-11-19");
+    add("版本", "v25.3 · 2026-11-19");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
