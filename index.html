@@ -3390,9 +3390,9 @@ a { color: inherit; text-decoration: none; }
 <div class="modal-mask" id="qjModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="qjTitle">
     <h3 id="qjTitle">从钱迹导入</h3>
-    <p class="modal-sub">钱迹 → 我的 → 数据导出 → 导出 CSV，存到手机里，再回来选这个文件。只补新账，不会覆盖你已经记的。</p>
-    <button type="button" class="ghost-btn wide-btn" id="qjPick">选择 CSV 文件</button>
-    <input type="file" id="qjFile" accept=".csv,text/csv,text/plain,.txt" hidden>
+    <p class="modal-sub">钱迹 → 我的 → 设置·关于 → 数据导出，格式选 Excel 或 JSON 都行；存到手机里，再回来选这个文件。只补新账，不会覆盖你已经记的。</p>
+    <button type="button" class="ghost-btn wide-btn" id="qjPick">选择账单文件（Excel / JSON / CSV）</button>
+    <input type="file" id="qjFile" accept=".csv,.xlsx,.xls,.json,.txt,text/csv,application/json,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <details class="qj-paste">
       <summary>选不到文件？直接粘贴 CSV 内容</summary>
       <textarea id="qjText" rows="4" placeholder="把 CSV 里的内容整段粘贴进来…" spellcheck="false"></textarea>
@@ -7670,19 +7670,18 @@ function qjCatKey(name) {
   return "other";
 }
 
-function qjParse(text) {
-  const rows = qjCsvRows(text);
-  if (!rows.length) return { ok: false, msg: "这个文件是空的" };
+function qjFromRows(rows) {
+  if (!rows || !rows.length) return { ok: false, msg: "这个文件是空的" };
 
   /* 找表头：前 12 行里同时有「时间」和「金额」的那一行（钱迹导出的第一行就是） */
   let hi = -1;
   for (let i = 0; i < Math.min(rows.length, 12); i++) {
-    const line = rows[i].map(x => String(x).trim());
+    const line = (rows[i] || []).map(x => String(x || "").trim());
     if (line.some(x => x === "时间" || x === "消费时间" || x === "账单时间") && line.some(x => x === "金额")) { hi = i; break; }
   }
   if (hi < 0) return { ok: false, msg: "没找到表头（要同时有「时间」「金额」两列）。把你导出文件的前两行发我，我照着改。" };
 
-  const head = rows[hi].map(x => String(x).trim());
+  const head = (rows[hi] || []).map(x => String(x || "").trim());
   const col = (...names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
   const cT = col("时间", "消费时间", "账单时间");
   const cA = col("金额");
@@ -7694,7 +7693,7 @@ function qjParse(text) {
   if (cT < 0 || cA < 0) return { ok: false, msg: "表头里没读到「时间」或「金额」列，先确认这是钱迹导出的 CSV。" };
 
   const out = [];
-  let bad = 0, moved = 0;
+  let bad = 0, moved = 0, typeUnknown = 0;
   const unknown = {};
   for (let i = hi + 1; i < rows.length; i++) {
     const r = rows[i];
@@ -7704,9 +7703,10 @@ function qjParse(text) {
     if (!isFinite(ts) || !isFinite(amount) || amount <= 0) { bad++; continue; }
 
     let type;
-    if (tyRaw.includes("收入") || tyRaw.includes("退款") || tyRaw.includes("报销")) type = "income";
-    else if (tyRaw.includes("支出") || tyRaw === "") type = "expense";
-    else { moved++; continue; }   /* 转账 / 还款 */
+    if (/转账|还款/.test(tyRaw)) { moved++; continue; }   /* 自己账户之间搬钱，不算花销 */
+    if (/收入|退款|报销|income/i.test(tyRaw)) type = "income";
+    else if (/支出|expense|消费/i.test(tyRaw) || tyRaw === "") type = "expense";
+    else { type = "expense"; typeUnknown++; }
 
     const name = ((cC >= 0 ? String(r[cC] || "") : "") + (cC2 >= 0 ? String(r[cC2] || "") : "")).trim();
     const cat = qjCatKey(name);
@@ -7734,11 +7734,286 @@ function qjParse(text) {
 
   const tsAll = out.map(r => r.ts);
   return {
-    ok: true, news, dup, bad, moved, unknown,
+    ok: true, news, dup, bad, moved, unknown, typeUnknown,
     total: out.length,
     from: tsAll.length ? Math.min(...tsAll) : 0,
     to: tsAll.length ? Math.max(...tsAll) : 0
   };
+}
+
+function qjParse(text) {
+  return qjFromRows(qjCsvRows(text));
+}
+
+/* ---------- 读文件：先看是不是 Excel / JSON，再当文本解（UTF-8 不成自动换 GBK） ---------- */
+function qjDecodeText(ab) {
+  const u8 = new Uint8Array(ab);
+  let s = new TextDecoder("utf-8").decode(u8);
+  const bad = (s.match(/\uFFFD/g) || []).length;
+  if (bad > 0) {
+    /* 钱迹安卓端在部分机型上导的是 GBK，浏览器按 UTF-8 解就会满屏乱码 */
+    try {
+      const g = new TextDecoder("gbk").decode(u8);
+      if ((g.match(/\uFFFD/g) || []).length < bad) return g;
+    } catch (e) { /* 不支持 gbk 就原样返回 */ }
+  }
+  return s;
+}
+
+/* ---------- 极简 xlsx 读取：解 zip（浏览器自带 deflate-raw）+ 正则扒 sheet XML ---------- */
+async function qjUnzip(ab) {
+  const u8 = new Uint8Array(ab);
+  const dv = new DataView(ab);
+  let eocd = -1;
+  for (let i = u8.length - 22; i >= Math.max(0, u8.length - 66000); i--) {
+    if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error("不是 zip 文件");
+  const count = dv.getUint16(eocd + 10, true);
+  let off = dv.getUint32(eocd + 16, true);
+  const entries = {};
+  for (let n = 0; n < count; n++) {
+    if (dv.getUint32(off, true) !== 0x02014b50) break;
+    const method = dv.getUint16(off + 10, true);
+    const csize = dv.getUint32(off + 20, true);
+    const nameLen = dv.getUint16(off + 28, true);
+    const extraLen = dv.getUint16(off + 30, true);
+    const cmtLen = dv.getUint16(off + 32, true);
+    const lho = dv.getUint32(off + 42, true);
+    const name = new TextDecoder().decode(u8.subarray(off + 46, off + 46 + nameLen));
+    entries[name] = { method, csize, lho };
+    off += 46 + nameLen + extraLen + cmtLen;
+  }
+  async function read(name) {
+    const e = entries[name];
+    if (!e) return null;
+    const lnameLen = dv.getUint16(e.lho + 26, true);
+    const lextraLen = dv.getUint16(e.lho + 28, true);
+    const start = e.lho + 30 + lnameLen + lextraLen;
+    const comp = u8.subarray(start, start + e.csize);
+    if (e.method === 0) return comp;
+    if (typeof DecompressionStream !== "function") throw new Error("这个浏览器不支持解压 xlsx");
+    const stream = new Blob([comp]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  return { names: Object.keys(entries), read: read };
+}
+
+function qjXmlText(s) {
+  return String(s)
+    .replace(/&#x([0-9a-fA-F]+);/g, (m, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(+d))
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"').replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function qjXlsxShared(xml) {
+  const out = [];
+  const siRe = /<si[^>]*>([\s\S]*?)<\/si>/g;
+  let m;
+  while ((m = siRe.exec(xml))) {
+    let txt = "";
+    const tRe = /<t[^>]*>([\s\S]*?)<\/t>/g;
+    let tm;
+    while ((tm = tRe.exec(m[1]))) txt += qjXmlText(tm[1]);
+    out.push(txt);
+  }
+  return out;
+}
+
+function qjXlsxSheet(xml, shared) {
+  const rows = [];
+  const rowRe = /<row[^>]*>([\s\S]*?)<\/row>/g;
+  let rm;
+  while ((rm = rowRe.exec(xml))) {
+    const cells = [];
+    const cellRe = /<c([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
+    let cm;
+    while ((cm = cellRe.exec(rm[1]))) {
+      const attrs = cm[1] || "";
+      const inner = cm[2] || "";
+      const refM = attrs.match(/r="([A-Z]+)\d+"/);
+      const tm = attrs.match(/t="([^"]+)"/);
+      const t = tm ? tm[1] : "";
+      let v = (inner.match(/<v>([\s\S]*?)<\/v>/) || [])[1];
+      if (t === "s") v = shared[+v] != null ? shared[+v] : "";
+      else if (t === "inlineStr") v = qjXmlText((inner.match(/<t[^>]*>([\s\S]*?)<\/t>/) || [])[1] || "");
+      else v = v == null ? "" : qjXmlText(v);
+      let ci = cells.length;
+      if (refM) {
+        ci = 0;
+        for (const ch of refM[1]) ci = ci * 26 + (ch.charCodeAt(0) - 64);
+        ci -= 1;
+      }
+      cells[ci] = String(v);
+    }
+    for (let i = 0; i < cells.length; i++) if (cells[i] == null) cells[i] = "";
+    rows.push(cells);
+  }
+  return rows.filter(r => r.some(x => String(x).trim() !== ""));
+}
+
+async function qjParseXlsx(ab) {
+  const z = await qjUnzip(ab);
+  const dec = new TextDecoder("utf-8");
+  const sPaths = z.names.filter(n => /^xl\/worksheets\/sheet\d+\.xml$/.test(n)).sort();
+  if (!sPaths.length) return { ok: false, msg: "这个 Excel 里没读到工作表，可能不是账单文件。" };
+  const sharedBuf = await z.read("xl/sharedStrings.xml");
+  const shared = sharedBuf ? qjXlsxShared(dec.decode(sharedBuf)) : [];
+  const sheetBuf = await z.read(sPaths[0]);
+  if (!sheetBuf) return { ok: false, msg: "Excel 的工作表读不出来" };
+  const rows = qjXlsxSheet(dec.decode(sheetBuf), shared);
+  return qjFromRows(rows);
+}
+
+/* ---------- JSON 备份：不认识字段名就按「哪个数组最像账单」找 ---------- */
+const QJ_KEY = {
+  time: /^(时间|消费时间|账单时间|time|date|ts|timestamp|createTime|billTime|recordTime)$/i,
+  amount: /^(金额|money|amount|price|sum|value)$/i,
+  type: /^(类型|账单类型|type|billType|incomeType)$/i,
+  cat: /^(分类|一级分类|category|categoryName|catName|cat)$/i,
+  cat2: /^(二级分类|subCategory|subCategoryName|subName)$/i,
+  note: /^(备注|remark|note|desc|description|comment)$/i,
+  id: /^(id|ID|_id|billId|recordId|uuid)$/
+};
+
+function qjPickKey(o, re) {
+  for (const k of Object.keys(o)) {
+    if (re.test(k)) return k;
+    const norm = k.replace(/[_\s\-.]/g, "");
+    if (re.test(norm)) return k;
+  }
+  return null;
+}
+
+function qjBillScore(o) {
+  let s = 0;
+  if (qjPickKey(o, QJ_KEY.time)) s++;
+  if (qjPickKey(o, QJ_KEY.amount)) s++;
+  if (qjPickKey(o, QJ_KEY.type) || qjPickKey(o, QJ_KEY.cat)) s++;
+  return s;
+}
+
+function qjFindBillArray(root) {
+  let best = null;
+  let bestScore = 0;
+  const seen = new Set();
+  (function walk(v, depth) {
+    if (!v || typeof v !== "object" || depth > 8 || seen.has(v)) return;
+    seen.add(v);
+    if (Array.isArray(v)) {
+      if (v.length && v[0] && typeof v[0] === "object") {
+        const sc = qjBillScore(v[0]);
+        if (sc >= 2 && (sc > bestScore || (sc === bestScore && best && v.length > best.length))) { best = v; bestScore = sc; }
+      }
+      v.slice(0, 5).forEach(x => walk(x, depth + 1));
+      return;
+    }
+    Object.keys(v).forEach(k => walk(v[k], depth + 1));
+  })(root, 0);
+  return best;
+}
+
+function qjJsonTs(v) {
+  if (typeof v === "number" && isFinite(v)) {
+    if (v > 1e12) return v;                 /* 13 位：毫秒 */
+    if (v >= 1e9) return v * 1000;          /* 10 位：秒 */
+    if (v >= 19000000 && v <= 21000000) {   /* 20261118 这种 yyyymmdd */
+      const s = String(v);
+      return new Date(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)).getTime();
+    }
+    return NaN;
+  }
+  return qjTs(v);
+}
+
+function qjParseJson(text) {
+  let root;
+  try { root = JSON.parse(text); } catch (e) {
+    return { ok: false, msg: "JSON 读不动（文件可能没导完整）。可以改导 Excel 再试。" };
+  }
+  const arr = qjFindBillArray(root);
+  if (!arr || !arr.length) {
+    const keys = root && typeof root === "object" ? Object.keys(root).slice(0, 6).join("、") : "";
+    return { ok: false, msg: "这个 JSON 里没找到账单列表" + (keys ? "（顶层字段：" + escHtml(keys) + "）" : "") + "。把文件发我，我照它的格式加一条解析。" };
+  }
+
+  const out = [];
+  let bad = 0, moved = 0, typeUnknown = 0;
+  const unknown = {};
+  arr.forEach(o => {
+    const kT = qjPickKey(o, QJ_KEY.time), kA = qjPickKey(o, QJ_KEY.amount);
+    const kTy = qjPickKey(o, QJ_KEY.type), kC = qjPickKey(o, QJ_KEY.cat);
+    const kC2 = qjPickKey(o, QJ_KEY.cat2), kN = qjPickKey(o, QJ_KEY.note), kId = qjPickKey(o, QJ_KEY.id);
+    const ts = kT ? qjJsonTs(o[kT]) : NaN;
+    let amount = kA ? o[kA] : NaN;
+    if (typeof amount === "string") amount = parseFloat(amount.replace(/[^\d.\-]/g, ""));
+    amount = Math.abs(Number(amount));
+    if (!isFinite(ts) || !isFinite(amount) || amount <= 0) { bad++; return; }
+
+    const tyRaw = kTy ? String(o[kTy]).trim() : "";
+    let type;
+    if (/转账|还款|借入|借出|transfer|repay/i.test(tyRaw)) { moved++; return; }
+    if (/收入|退款|报销|income|reimburse/i.test(tyRaw)) type = "income";
+    else if (/支出|expense|cost|消费/i.test(tyRaw) || tyRaw === "") type = "expense";
+    else { type = "expense"; typeUnknown++; }   /* 认不出的类型先按支出算，预览里会写明 */
+
+    const name = ((kC ? String(o[kC] || "") : "") + (kC2 ? String(o[kC2] || "") : "")).trim();
+    const cat = qjCatKey(name);
+    const exactName = name && getCats().some(c => c.name === name);
+    if (cat === "other" && name && !exactName) unknown[name] = (unknown[name] || 0) + 1;
+    const note = String((kN ? o[kN] : "") || "").trim().slice(0, 30) || name.slice(0, 30);
+
+    out.push({ qj: kId ? String(o[kId]).slice(0, 32) : "", ts, type, cat, note, amount: Math.round(amount * 100) / 100 });
+  });
+
+  if (!out.length) return { ok: false, msg: "JSON 里的账单一条都没读出来（字段名对不上）。把文件发我，我照它的格式加一条解析。" };
+
+  /* 判重逻辑和表格路径一致 */
+  const news = [], dup = [];
+  const seenQj = new Set(state.ledger.map(e => e.qj).filter(Boolean));
+  out.forEach(r => {
+    let isDup = false;
+    if (r.qj && seenQj.has(r.qj)) isDup = true;
+    else isDup = state.ledger.some(e => e.type === r.type && Math.abs(e.amount - r.amount) < 0.005 && Math.abs(e.ts - r.ts) <= 180000);
+    (isDup ? dup : news).push(r);
+  });
+  const tsAll = out.map(r => r.ts);
+  return {
+    ok: true, news, dup, bad, moved, unknown, typeUnknown,
+    total: out.length,
+    from: Math.min(...tsAll),
+    to: Math.max(...tsAll)
+  };
+}
+
+/* 一个入口：自动认 Excel / JSON / CSV，解不出来时给一句人话 */
+async function qjParseFile(file) {
+  const ab = await file.arrayBuffer();
+  const u8 = new Uint8Array(ab);
+  const name = (file.name || "").toLowerCase();
+  const isZip = u8[0] === 0x50 && u8[1] === 0x4b;
+  const isOle = u8[0] === 0xd0 && u8[1] === 0xcf && u8[2] === 0x11 && u8[3] === 0xe0;
+
+  if (isZip) {
+    /* 先确认是 xlsx（里面有 xl/ 目录），别的 zip 不做处理 */
+    try {
+      const res = await qjParseXlsx(ab);
+      return res;
+    } catch (e) {
+      return { ok: false, msg: "这个 Excel 打不开（可能是 .xls 老格式或加密了）。用 WPS 另存成 .xlsx 或 .csv 再导。" };
+    }
+  }
+  if (isOle) {
+    return { ok: false, msg: "这是老版 .xls 格式，浏览器解不了。用 WPS 打开另存为 .xlsx 或 .csv，再导。" };
+  }
+
+  const text = qjDecodeText(ab);
+  const trimmed = text.replace(/^\uFEFF/, "").trim();
+
+  if (name.endsWith(".json") || /^[\[{]/.test(trimmed)) return qjParseJson(trimmed);
+  return qjParse(trimmed);
 }
 
 const qjModal = document.getElementById("qjModal");
@@ -7766,6 +8041,7 @@ function qjRenderPreview(res) {
 
   const line2 = [];
   if (inc > 0) line2.push("含收入 " + qjMoney(inc) + "（" + res.news.filter(r => r.type === "income").length + " 笔）");
+  if (res.typeUnknown) line2.push("类型没看懂的 " + res.typeUnknown + " 笔先按支出算");
   if (res.bad) line2.push("看不懂的行 " + res.bad + " 行");
   if (res.moved) line2.push("转账/还款 " + res.moved + " 笔（不算花销，跳过）");
   const uNames = Object.keys(res.unknown).sort((a, b) => res.unknown[b] - res.unknown[a]).slice(0, 3);
@@ -7783,7 +8059,6 @@ function qjRenderPreview(res) {
 
 function qjHandleText(text) {
   if (!text || !String(text).trim()) { toast("内容是空的"); return; }
-  if (String(text).indexOf("\uFFFD") >= 0) { toast("文件编码不对，试试用 WPS 另存为 UTF-8"); return; }
   qjPending = qjParse(text);
   qjRenderPreview(qjPending);
 }
@@ -7821,13 +8096,19 @@ document.getElementById("btnQjImport").addEventListener("click", () => {
   qjModal.hidden = false;
 });
 document.getElementById("qjPick").addEventListener("click", () => qjFileInput.click());
-qjFileInput.addEventListener("change", () => {
+qjFileInput.addEventListener("change", async () => {
   const f = qjFileInput.files && qjFileInput.files[0];
   if (!f) return;
-  const fr = new FileReader();
-  fr.onload = () => { qjHandleText(fr.result); qjFileInput.value = ""; };
-  fr.onerror = () => { toast("读取文件失败"); qjFileInput.value = ""; };
-  fr.readAsText(f, "utf-8");
+  qjDoBtn.disabled = true;
+  qjDoBtn.textContent = "正在读…";
+  try {
+    qjPending = await qjParseFile(f);
+    qjRenderPreview(qjPending);
+  } catch (err) {
+    qjPending = { ok: false, msg: "这个文件读不动：" + (err && err.message ? err.message : "格式不认识") + "。可以改导 Excel 或 CSV 再试。" };
+    qjRenderPreview(qjPending);
+  }
+  qjFileInput.value = "";
 });
 document.getElementById("qjParseText").addEventListener("click", () => {
   qjHandleText(document.getElementById("qjText").value);
@@ -10493,7 +10774,7 @@ if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)) {
       body.appendChild(row);
     };
     const sync = state.sync || {};
-    add("版本", "v25 · 2026-11-18");
+    add("版本", "v25.1 · 2026-11-19");
     add("本机记录", (state.records || []).length + " 条", "ok");
     add("本机期间", (state.spans || []).length + " 个", "ok");
     if (!sync.enabled) {
